@@ -8,6 +8,7 @@ const MissionInput = lazy(() => import("@/pages/MissionInput"));
 const SurvivorAssist = lazy(() => import("@/pages/SurvivorAssist"));
 const License = lazy(() => import("@/pages/License"));
 const Documentation = lazy(() => import("@/pages/Documentation"));
+const HistoryDashboard = lazy(() => import("@/pages/HistoryDashboard"));
 
 const Loader = () => (
   <div className="flex items-center justify-center min-h-screen" style={{ background: "hsl(var(--background))" }}>
@@ -47,6 +48,7 @@ const App: React.FC = () => {
           <Route path="/survivor" element={<SurvivorAssist />} />
           <Route path="/license" element={<License />} />
           <Route path="/docs" element={<Documentation />} />
+          <Route path="/history" element={<HistoryDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

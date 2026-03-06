@@ -11,16 +11,22 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import type { LiveAircraft, DangerScore, DangerFactor, WeatherData } from "@/types";
 import { computeCrashProbability, calculateDrift, KMH_TO_MS } from "@/lib/physics";
 import { windDangerScore } from "@/lib/weatherApi";
-import { AlertTriangle, Plane, ChevronDown, ChevronRight, Activity, RefreshCw } from "lucide-react";
+import { saveRiskAssessments } from "@/lib/sarStorage";
+import type { RiskEntry } from "@/lib/sarStorage";
+import { AlertTriangle, Plane, ChevronDown, ChevronRight, Activity, RefreshCw, Save } from "lucide-react";
 
 interface Props {
   aircraft: LiveAircraft[];
   weatherMap?: Map<string, WeatherData>;
   topN?: number;
+  /** Called with CRITICAL+HIGH aircraft for alert triggering */
+  onHighRisk?: (aircraft: DangerScore[]) => void;
+  /** Auto-save risk assessments every N seconds (0 = disabled) */
+  autoSaveIntervalSec?: number;
 }
 
 function levelClass(level: DangerScore["level"]): string {
@@ -121,9 +127,15 @@ function computeDangerScore(ac: LiveAircraft, weather?: WeatherData): DangerScor
   };
 }
 
-const DangerAssessment: React.FC<Props> = ({ aircraft, weatherMap, topN = 10 }) => {
+const DangerAssessment: React.FC<Props> = ({
+  aircraft, weatherMap, topN = 10,
+  onHighRisk,
+  autoSaveIntervalSec = 120,
+}) => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter] = useState<DangerScore["level"] | "ALL">("ALL");
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const lastSaveRef = useRef<number>(0);
 
   const scored = useMemo<DangerScore[]>(() => {
     return aircraft
@@ -142,6 +154,35 @@ const DangerAssessment: React.FC<Props> = ({ aircraft, weatherMap, topN = 10 }) 
     SAFE:     scored.filter((s) => s.level === "SAFE").length,
   }), [scored]);
 
+  // ── Auto-save risk assessments ────────────────────────────────────────
+  useEffect(() => {
+    if (autoSaveIntervalSec <= 0 || scored.length === 0) return;
+    const now = Date.now();
+    if (now - lastSaveRef.current < autoSaveIntervalSec * 1000) return;
+    lastSaveRef.current = now;
+
+    const entries: RiskEntry[] = scored
+      .filter((s) => s.level === "CRITICAL" || s.level === "WARNING")
+      .map((s) => ({
+        icao24:      s.icao24,
+        callsign:    s.callsign,
+        lat:         s.lat,
+        lon:         s.lon,
+        altitude_ft: s.altitude,
+        risk_score:  s.score,
+        risk_level:  (s.level === "CRITICAL" ? "CRITICAL" : "HIGH") as "CRITICAL" | "HIGH",
+        factors:     s.factors.map((f) => ({ label: f.name, score: f.points })),
+      }));
+
+    if (entries.length > 0) {
+      saveRiskAssessments(entries).then(() => setLastSaved(new Date()));
+    }
+
+    // ── Notify parent about high-risk aircraft ─────────────────────────
+    const highRisk = scored.filter((s) => s.level === "CRITICAL" || s.level === "WARNING");
+    if (highRisk.length > 0) onHighRisk?.(highRisk);
+  }, [scored, autoSaveIntervalSec, onHighRisk]);
+
   return (
     <div className="sar-card hud-border overflow-hidden h-full flex flex-col">
       {/* Header */}
@@ -151,7 +192,14 @@ const DangerAssessment: React.FC<Props> = ({ aircraft, weatherMap, topN = 10 }) 
           <Activity size={14} className="text-danger" />
           <h3 className="font-heading text-sm font-700 tracking-widest">DANGER ASSESSMENT</h3>
         </div>
+        <div className="flex items-center gap-2">
+        {lastSaved && (
+          <span className="label-tag text-success text-[8px] flex items-center gap-1">
+            <Save size={8} /> SAVED {lastSaved.toLocaleTimeString()}
+          </span>
+        )}
         <span className="label-tag">{scored.length} AT RISK</span>
+      </div>
       </div>
 
       {/* Filter Tabs */}

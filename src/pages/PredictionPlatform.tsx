@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
 import { sendSARAlert } from "@/lib/notifications";
 import type { NotifyAircraft } from "@/lib/notifications";
+import type { DangerScore } from "@/types";
 
 const DEFAULT_RADIUS_KM   = 1500;
 const REFRESH_INTERVAL_MS = 25_000;
@@ -125,6 +126,28 @@ const PredictionPlatform: React.FC = () => {
     }
     setShowLiveAircraft((v) => !v);
   };
+
+  // ── Alert cooldown controls ────────────────────────────────────────────
+  const [cooldownMin, setCooldownMin]     = useState(10);   // minutes
+  const [alertEnabled, setAlertEnabled]   = useState(true);
+  const [showCooldownPanel, setShowCooldownPanel] = useState(false);
+
+  // ── Risk auto-alert callback (from DangerAssessment) ──────────────────
+  const handleHighRisk = useCallback((highRisk: DangerScore[]) => {
+    if (!alertEnabled) return;
+    const toAlert: NotifyAircraft[] = highRisk.map((s) => ({
+      icao24:      s.icao24,
+      callsign:    s.callsign,
+      lat:         s.lat,
+      lon:         s.lon,
+      altitude_ft: s.altitude,
+      risk_score:  s.score,
+      risk_level:  s.level,
+      factors:     s.factors.map((f) => ({ name: f.name, value: f.value, points: f.points })),
+    }));
+    const trigger = toAlert.some((a) => a.risk_level === "CRITICAL") ? "CRITICAL" : "HIGH";
+    sendSARAlert(trigger, toAlert);
+  }, [alertEnabled]);
 
   // ── Test Alert ──────────────────────────────────────────────────────────
   const [testAlertLoading, setTestAlertLoading] = useState(false);
@@ -224,6 +247,74 @@ const PredictionPlatform: React.FC = () => {
           </p>
         </div>
         <div className="flex-1" />
+
+        {/* Alert Cooldown Controls */}
+        <div className="relative">
+          <button
+            onClick={() => setShowCooldownPanel((v) => !v)}
+            className={`flex items-center gap-2 px-3 py-2 rounded font-heading text-xs border transition-all ${
+              alertEnabled
+                ? "border-primary/50 text-primary hover:bg-primary/10"
+                : "border-border text-muted-foreground hover:border-primary/30"
+            }`}
+            title="Alert cooldown & notification settings"
+          >
+            <Radio size={11} />
+            ALERTS {alertEnabled ? "ON" : "OFF"}
+          </button>
+          {showCooldownPanel && (
+            <div
+              className="absolute right-0 top-full mt-1 z-50 w-64 rounded border border-border p-3 space-y-3 shadow-xl"
+              style={{ background: "hsl(var(--surface))" }}
+            >
+              <div className="font-heading text-xs font-700 tracking-widest border-b border-border pb-2">NOTIFICATION SETTINGS</div>
+              <label className="flex items-center justify-between gap-2">
+                <span className="label-tag text-[9px]">EMAIL + SMS ALERTS</span>
+                <button
+                  onClick={() => setAlertEnabled((v) => !v)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${
+                    alertEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                  }`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                    alertEnabled ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+              </label>
+              <div className="space-y-1">
+                <label className="label-tag text-[9px] block">COOLDOWN (same aircraft)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range" min={1} max={60} step={1}
+                    value={cooldownMin}
+                    onChange={(e) => setCooldownMin(parseInt(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <span className="font-mono text-xs text-primary w-12 text-right">{cooldownMin} min</span>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {[5, 10, 15, 30, 60].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setCooldownMin(m)}
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono border transition-all ${
+                        cooldownMin === m
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="text-[9px] text-muted-foreground border-t border-border pt-2">
+                Alerts via Fast2SMS + Resend to<br/>
+                <span className="text-primary font-mono">+91 8124919993</span> &amp; <span className="text-primary font-mono">anands9408@gmail.com</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Test Alert Button */}
         <button
@@ -432,21 +523,6 @@ const PredictionPlatform: React.FC = () => {
               </span>
             )}
             <div className="flex-1" />
-
-        {/* Test Alert Button */}
-        <button
-          onClick={handleTestAlert}
-          disabled={testAlertLoading}
-          className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Send a mock CRITICAL alert to verify email & SMS delivery"
-        >
-          {testAlertLoading ? (
-            <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Activity size={12} />
-          )}
-          TEST ALERT
-        </button>
             <span className="label-tag">
               GS: {(physicsSummary.groundVector.magnitude / 0.514444).toFixed(1)} kts ·
               Conf: {physicsSummary.confidenceNow.toFixed(1)}%
@@ -479,21 +555,6 @@ const PredictionPlatform: React.FC = () => {
                   DANGER ASSESSMENT
                 </span>
                 <div className="flex-1" />
-
-        {/* Test Alert Button */}
-        <button
-          onClick={handleTestAlert}
-          disabled={testAlertLoading}
-          className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Send a mock CRITICAL alert to verify email & SMS delivery"
-        >
-          {testAlertLoading ? (
-            <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Activity size={12} />
-          )}
-          TEST ALERT
-        </button>
                 {showDanger
                   ? <ChevronUp size={14} className="text-muted-foreground" />
                   : <ChevronDown size={14} className="text-muted-foreground" />}
@@ -501,7 +562,13 @@ const PredictionPlatform: React.FC = () => {
               {showDanger && (
                 <div style={{ height: 400 }}>
                   {showLiveAircraft && aircraft.length > 0 ? (
-                    <DangerAssessment aircraft={aircraft} weatherMap={weatherMap} topN={15} />
+                    <DangerAssessment
+                      aircraft={aircraft}
+                      weatherMap={weatherMap}
+                      topN={15}
+                      onHighRisk={handleHighRisk}
+                      autoSaveIntervalSec={120}
+                    />
                   ) : (
                     <div className="p-6 text-center">
                       <Plane size={28} className="text-muted-foreground mx-auto mb-3" />

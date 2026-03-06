@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import sarLogo from "@/assets/sar-logo.png";
-import { Radio, Map, Heart, FileText, BookOpen } from "lucide-react";
+import { Radio, Map, Heart, FileText, BookOpen, History } from "lucide-react";
 import React from "react";
 
 const Header = () => {
@@ -31,6 +31,7 @@ const Header = () => {
             { to: "/", label: "PREDICTION", icon: Map, end: true },
             { to: "/mission", label: "MISSION INPUT", icon: Radio, end: false },
             { to: "/survivor", label: "SURVIVOR AID", icon: Heart, end: false },
+            { to: "/history", label: "HISTORY", icon: History, end: false },
             { to: "/docs", label: "DOCS", icon: BookOpen, end: false },
             { to: "/license", label: "LICENSE", icon: FileText, end: false },
           ].map((item) => (

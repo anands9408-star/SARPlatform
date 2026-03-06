@@ -2,8 +2,9 @@
  * SAR Notification Edge Function
  * ─────────────────────────────────────────────────────────────────────────────
  * Sends crash/warning alerts via:
- *   • Email  — Resend API  → anands9408@gmail.com
- *   • SMS    — Twilio API  → +918124919993
+ *   • Email  — Resend API   → anands9408@gmail.com
+ *   • SMS    — Fast2SMS API → +918124919993  (fast Indian delivery)
+ *              Falls back to Twilio if Fast2SMS key not set.
  *
  * POST body:
  * {
@@ -20,6 +21,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const RECIPIENT_EMAIL = "anands9408@gmail.com";
 const RECIPIENT_PHONE = "+918124919993";
+const RECIPIENT_PHONE_DIGITS = "8124919993"; // Fast2SMS wants 10-digit local number
 
 Deno.serve(async (req: Request) => {
   // ── CORS preflight ─────────────────────────────────────────────────────
@@ -143,18 +145,54 @@ Deno.serve(async (req: Request) => {
       results.email = "skipped — RESEND_API_KEY not set";
     }
 
-    // ── SMS via Twilio ─────────────────────────────────────────────────────
+    // ── SMS via Fast2SMS (primary — fast Indian delivery) ────────────────
+    const fast2smsKey = Deno.env.get("FAST2SMS_API_KEY");
     const twilioSid   = Deno.env.get("TWILIO_ACCOUNT_SID");
     const twilioToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const twilioFrom  = Deno.env.get("TWILIO_PHONE_NUMBER");
 
-    if (twilioSid && twilioToken && twilioFrom) {
+    // Short SMS text (Fast2SMS has a 160-char per segment limit on quick route)
+    const shortSms =
+      `SAR ${trigger} ALERT: ` +
+      aircraft.slice(0, 3).map((ac: any) =>
+        `${ac.callsign||ac.icao24} Risk:${ac.risk_score}/100 @${ac.altitude_ft}ft`
+      ).join(" | ") +
+      ` [${new Date().toUTCString().slice(17, 25)} UTC]`;
+
+    if (fast2smsKey) {
+      try {
+        const f2sRes = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+          method: "POST",
+          headers: {
+            "authorization": fast2smsKey,
+            "Content-Type":  "application/json",
+          },
+          body: JSON.stringify({
+            route:   "q",                       // Quick transactional route
+            message: shortSms.slice(0, 160),
+            numbers: RECIPIENT_PHONE_DIGITS,    // 10-digit Indian mobile
+            flash:   0,
+          }),
+        });
+        const f2sData = await f2sRes.json();
+        if (f2sData.return === true) {
+          results.sms = "sent";
+          console.log("[SAR Notify] Fast2SMS sent:", f2sData.request_id);
+        } else {
+          results.sms = `Fast2SMS error: ${f2sData.message || JSON.stringify(f2sData)}`;
+          console.error("[SAR Notify] Fast2SMS:", f2sData);
+        }
+      } catch (e: any) {
+        results.sms = `Fast2SMS exception: ${e.message}`;
+        console.error("[SAR Notify] Fast2SMS exception:", e);
+      }
+    } else if (twilioSid && twilioToken && twilioFrom) {
+      // Fallback: Twilio
       const smsBody = new URLSearchParams({
         From: twilioFrom,
         To:   RECIPIENT_PHONE,
-        Body: smsText.slice(0, 1600), // Twilio 1600-char limit
+        Body: smsText.slice(0, 1600),
       });
-
       try {
         const smsRes = await fetch(
           `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
@@ -172,15 +210,15 @@ Deno.serve(async (req: Request) => {
           results.sms = `Twilio error: ${smsData.message || JSON.stringify(smsData)}`;
           console.error("[SAR Notify] Twilio:", smsData);
         } else {
-          results.sms = "sent";
-          console.log("[SAR Notify] SMS sent:", smsData.sid);
+          results.sms = "sent (Twilio fallback)";
+          console.log("[SAR Notify] Twilio SMS sent:", smsData.sid);
         }
       } catch (e: any) {
-        results.sms = `SMS exception: ${e.message}`;
-        console.error("[SAR Notify] SMS exception:", e);
+        results.sms = `Twilio exception: ${e.message}`;
+        console.error("[SAR Notify] Twilio exception:", e);
       }
     } else {
-      results.sms = "skipped — Twilio credentials not fully set";
+      results.sms = "skipped — no SMS credentials set";
     }
 
     return new Response(
