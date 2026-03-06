@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
+import { sendSARAlert } from "@/lib/notifications";
+import type { NotifyAircraft } from "@/lib/notifications";
 
 const DEFAULT_RADIUS_KM   = 1500;
 const REFRESH_INTERVAL_MS = 25_000;
@@ -124,6 +126,56 @@ const PredictionPlatform: React.FC = () => {
     setShowLiveAircraft((v) => !v);
   };
 
+  // ── Test Alert ──────────────────────────────────────────────────────────
+  const [testAlertLoading, setTestAlertLoading] = useState(false);
+
+  const handleTestAlert = async () => {
+    setTestAlertLoading(true);
+    toast.info("Sending test CRITICAL alert — check email & SMS…");
+
+    const mockAircraft: NotifyAircraft[] = [
+      {
+        icao24:      "TEST01",
+        callsign:    "SAR-TEST",
+        lat:         lat,
+        lon:         lon,
+        altitude_ft: 1200,
+        risk_score:  87,
+        risk_level:  "CRITICAL",
+        factors: [
+          { name: "Low Altitude",    value: "1,200 ft",  points: 35 },
+          { name: "Rapid Descent",   value: "-2,400 ft/min", points: 30 },
+          { name: "Extreme Weather", value: "Thunderstorm",  points: 22 },
+        ],
+      },
+    ];
+
+    // Bypass cooldown for test by calling the edge function directly
+    const { supabase: sb } = await import("@/lib/supabase");
+    const { FunctionsHttpError } = await import("@supabase/supabase-js");
+
+    const { data, error } = await sb.functions.invoke("sar-notify", {
+      body: { trigger: "CRITICAL", aircraft: mockAircraft },
+    });
+
+    if (error) {
+      let msg = error.message;
+      if (error instanceof FunctionsHttpError) {
+        try { msg = `[${error.context?.status}] ${await error.context?.text()}`; } catch { /* ignore */ }
+      }
+      toast.error(`Test alert failed: ${msg}`);
+    } else {
+      const r = data?.results ?? {};
+      const parts: string[] = [];
+      if (r.email === "sent")  parts.push("Email sent");
+      else if (r.email)        parts.push(`Email: ${r.email}`);
+      if (r.sms === "sent")    parts.push("SMS sent");
+      else if (r.sms)          parts.push(`SMS: ${r.sms}`);
+      toast.success(`Test alert dispatched — ${parts.join(" · ") || "check logs"}`);
+    }
+    setTestAlertLoading(false);
+  };
+
   const handlePinSuccess = () => {
     setShowPinGate(false);
     setHostAuthed(true);
@@ -172,6 +224,21 @@ const PredictionPlatform: React.FC = () => {
           </p>
         </div>
         <div className="flex-1" />
+
+        {/* Test Alert Button */}
+        <button
+          onClick={handleTestAlert}
+          disabled={testAlertLoading}
+          className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Send a mock CRITICAL alert to verify email & SMS delivery"
+        >
+          {testAlertLoading ? (
+            <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Activity size={12} />
+          )}
+          TEST ALERT
+        </button>
 
         {showLiveAircraft && (
           <div
@@ -365,6 +432,21 @@ const PredictionPlatform: React.FC = () => {
               </span>
             )}
             <div className="flex-1" />
+
+        {/* Test Alert Button */}
+        <button
+          onClick={handleTestAlert}
+          disabled={testAlertLoading}
+          className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Send a mock CRITICAL alert to verify email & SMS delivery"
+        >
+          {testAlertLoading ? (
+            <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Activity size={12} />
+          )}
+          TEST ALERT
+        </button>
             <span className="label-tag">
               GS: {(physicsSummary.groundVector.magnitude / 0.514444).toFixed(1)} kts ·
               Conf: {physicsSummary.confidenceNow.toFixed(1)}%
@@ -397,6 +479,21 @@ const PredictionPlatform: React.FC = () => {
                   DANGER ASSESSMENT
                 </span>
                 <div className="flex-1" />
+
+        {/* Test Alert Button */}
+        <button
+          onClick={handleTestAlert}
+          disabled={testAlertLoading}
+          className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Send a mock CRITICAL alert to verify email & SMS delivery"
+        >
+          {testAlertLoading ? (
+            <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Activity size={12} />
+          )}
+          TEST ALERT
+        </button>
                 {showDanger
                   ? <ChevronUp size={14} className="text-muted-foreground" />
                   : <ChevronDown size={14} className="text-muted-foreground" />}
