@@ -2,11 +2,12 @@
  * Prediction Platform — Optimized
  * ─────────────────────────────────────────────────────────────────────────────
  * Changes vs previous version:
- *  • Aircraft feed: bounded box, 25 s refresh
+ *  • Aircraft feed: bounded box OR global (GLOBAL_RADIUS sentinel), 25 s refresh
  *  • Physics prediction runs in Web Worker (off main thread)
- *  • Weather refresh: 7 minutes
+ *  • Weather refresh: 7 minutes — snapshots persisted to OnSpace Cloud
  *  • LKP localStorage writes only for selected aircraft
- *  • Scan radius is now a dynamic slider (100–2000 km) in CoordinatePanel
+ *  • Scan radius: dynamic slider (100–2000 km) + GLOBAL toggle in CoordinatePanel
+ *  • Backend: aircraft history + weather snapshots auto-saved
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -16,7 +17,7 @@ import ResourceTable from "@/components/features/ResourceTable";
 import GlideCalculator from "@/components/features/GlideCalculator";
 import MissionTimeline from "@/components/features/MissionTimeline";
 import AircraftStatusCards from "@/components/features/AircraftStatusCards";
-import CoordinatePanel from "@/components/features/CoordinatePanel";
+import CoordinatePanel, { GLOBAL_RADIUS } from "@/components/features/CoordinatePanel";
 import DangerAssessment from "@/components/features/DangerAssessment";
 import PhysicsPanel from "@/components/features/PhysicsPanel";
 import WeatherPanel from "@/components/features/WeatherPanel";
@@ -24,41 +25,43 @@ import { useAircraft } from "@/hooks/useAircraft";
 import { usePredictionWorker } from "@/hooks/usePredictionWorker";
 import { KMH_TO_MS } from "@/lib/physics";
 import { buildKinematicState } from "@/lib/predictionEngine";
+import { saveWeatherSnapshot } from "@/lib/sarStorage";
 import type { LiveAircraft, KinematicState, WeatherData } from "@/types";
 import { SEARCH_ZONES } from "@/constants/sar";
 import {
   Radio, Wifi, WifiOff, RefreshCw,
-  Plane, Activity, Calculator, ChevronDown, ChevronUp, MapPin, Lock,
+  Plane, Activity, Calculator, ChevronDown, ChevronUp, MapPin, Lock, Globe,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
 
-const DEFAULT_RADIUS_KM   = 1500;    // default scan radius
-const REFRESH_INTERVAL_MS = 25_000;  // 25 seconds
-const WEATHER_REFRESH_MS  = 7 * 60 * 1000; // 7 minutes
+const DEFAULT_RADIUS_KM   = 1500;
+const REFRESH_INTERVAL_MS = 25_000;
+const WEATHER_REFRESH_MS  = 7 * 60 * 1000;
 
 const PredictionPlatform: React.FC = () => {
   // ── Target LKP state ─────────────────────────────────────────────────────
-  const [lat, setLat] = useState(12.9716);
-  const [lon, setLon] = useState(77.5946);
+  const [lat, setLat]           = useState(12.9716);
+  const [lon, setLon]           = useState(77.5946);
   const [altitude, setAltitude] = useState(30000);
 
-  // ── Dynamic scan radius ───────────────────────────────────────────────────
+  // ── Dynamic scan radius (GLOBAL_RADIUS = 0 means worldwide) ──────────────
   const [scanRadius, setScanRadius] = useState(DEFAULT_RADIUS_KM);
+  const isGlobal = scanRadius === GLOBAL_RADIUS;
 
   // ── Host auth + live aircraft ─────────────────────────────────────────────
-  const [showPinGate, setShowPinGate] = useState(false);
-  const [hostAuthed, setHostAuthed] = useState(() => isHostAuthenticated());
+  const [showPinGate, setShowPinGate]         = useState(false);
+  const [hostAuthed, setHostAuthed]           = useState(() => isHostAuthenticated());
   const [showLiveAircraft, setShowLiveAircraft] = useState(false);
   const [selectedAircraft, setSelectedAircraft] = useState<LiveAircraft | null>(null);
 
   // ── Weather ───────────────────────────────────────────────────────────────
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const weatherMapRef = useRef<Map<string, WeatherData>>(new Map());
+  const [weather, setWeather]   = useState<WeatherData | null>(null);
+  const weatherMapRef           = useRef<Map<string, WeatherData>>(new Map());
 
   // ── UI collapse states ────────────────────────────────────────────────────
   const [showPhysics, setShowPhysics] = useState(true);
-  const [showDanger, setShowDanger] = useState(true);
+  const [showDanger, setShowDanger]   = useState(true);
 
   // ── Kinematic state ───────────────────────────────────────────────────────
   const kinematicState: KinematicState = useMemo(() => {
@@ -83,38 +86,37 @@ const PredictionPlatform: React.FC = () => {
 
   // ── Timer: elapsed seconds since LKP ─────────────────────────────────────
   const [timeSinceLKP, setTimeSinceLKP] = useState(0);
-  useEffect(() => {
-    setTimeSinceLKP(0);
-  }, [selectedAircraft, lat, lon]);
+  useEffect(() => { setTimeSinceLKP(0); }, [selectedAircraft, lat, lon]);
   useEffect(() => {
     const timer = setInterval(() => setTimeSinceLKP((t) => t + 5), 5000);
     return () => clearInterval(timer);
   }, []);
 
-  // ── Physics computation — Web Worker (off main thread) ────────────────────
+  // ── Physics computation — Web Worker ──────────────────────────────────────
   const { summary: physicsSummary, computing: physicsComputing } =
     usePredictionWorker(kinematicState, timeSinceLKP);
 
-  // ── Aircraft feed (bounded) ───────────────────────────────────────────────
+  // ── Aircraft feed ─────────────────────────────────────────────────────────
   const { aircraft, count, loading, error, lastUpdated, apiStatus, refresh } =
     useAircraft({
-      enabled: showLiveAircraft,
-      centerLat: lat,
-      centerLon: lon,
-      radiusKm: scanRadius,
-      refreshInterval: REFRESH_INTERVAL_MS,
-      windSpeedMs: weather ? weather.windSpeed * KMH_TO_MS : 5,
+      enabled:          showLiveAircraft,
+      centerLat:        lat,
+      centerLon:        lon,
+      radiusKm:         scanRadius,          // 0 = global
+      refreshInterval:  REFRESH_INTERVAL_MS,
+      windSpeedMs:      weather ? weather.windSpeed * KMH_TO_MS : 5,
       windDirectionDeg: weather ? weather.windDirection : 0,
-      selectedIcao24: selectedAircraft?.icao24 ?? null,
+      selectedIcao24:   selectedAircraft?.icao24 ?? null,
     });
 
   const toggleLive = () => {
     if (!showLiveAircraft) {
-      if (!hostAuthed) {
-        setShowPinGate(true);
-        return;
-      }
-      toast.success(`Connecting — fetching aircraft within ${scanRadius} km...`);
+      if (!hostAuthed) { setShowPinGate(true); return; }
+      toast.success(
+        isGlobal
+          ? "Connecting — global aircraft scan active (no bounding box)..."
+          : `Connecting — fetching aircraft within ${scanRadius} km...`
+      );
     } else {
       setSelectedAircraft(null);
       toast.info("Live aircraft feed disabled.");
@@ -137,11 +139,15 @@ const PredictionPlatform: React.FC = () => {
     toast.success(`Tracking: ${ac.callsign} · Physics prediction active`);
   }, []);
 
+  // Weather update — persist snapshot to OnSpace Cloud
   const handleWeatherUpdate = useCallback((data: WeatherData) => {
     setWeather(data);
-  }, []);
+    saveWeatherSnapshot(lat, lon, data); // fire-and-forget
+  }, [lat, lon]);
 
-  const weatherMap = weatherMapRef.current;
+  const weatherMap    = weatherMapRef.current;
+  const radiusLabel   = isGlobal ? "GLOBAL" : `${scanRadius} KM`;
+  const countLabel    = isGlobal ? `${count} aircraft worldwide` : `${count} aircraft within ${scanRadius} km`;
 
   return (
     <div className="min-h-screen pt-16" style={{ background: "hsl(var(--background))" }}>
@@ -152,7 +158,7 @@ const PredictionPlatform: React.FC = () => {
         />
       )}
 
-      {/* ── Page Header ─────────────────────────────────────────────────────── */}
+      {/* ── Page Header ────────────────────────────────────────────────────── */}
       <div
         className="px-6 py-3 border-b border-border flex flex-wrap items-center gap-3"
         style={{ background: "hsl(var(--surface))" }}
@@ -162,7 +168,7 @@ const PredictionPlatform: React.FC = () => {
             SAR PREDICTION PLATFORM
           </h1>
           <p className="text-xs text-muted-foreground">
-            S31 · Physics Engine (Web Worker) · {scanRadius} km Scan Radius · {REFRESH_INTERVAL_MS / 1000}s refresh
+            S31 · Physics Engine (Web Worker) · {radiusLabel} Scan · {REFRESH_INTERVAL_MS / 1000}s refresh · Backend ✓
           </p>
         </div>
         <div className="flex-1" />
@@ -172,9 +178,9 @@ const PredictionPlatform: React.FC = () => {
             className="flex items-center gap-2 px-3 py-1.5 rounded"
             style={{ background: "hsl(var(--muted))", border: "1px solid hsl(var(--border))" }}
           >
-            <MapPin size={12} className="text-primary" />
+            {isGlobal ? <Globe size={12} className="text-warning" /> : <MapPin size={12} className="text-primary" />}
             <span className="font-mono text-xs text-foreground">
-              {loading ? "Scanning..." : `${count} aircraft within ${scanRadius} km`}
+              {loading ? "Scanning..." : countLabel}
             </span>
           </div>
         )}
@@ -183,15 +189,19 @@ const PredictionPlatform: React.FC = () => {
           onClick={toggleLive}
           className={`flex items-center gap-2 px-4 py-2 rounded font-heading text-xs font-700 tracking-wide border transition-all ${
             showLiveAircraft
-              ? "bg-success/10 border-success text-success"
+              ? isGlobal
+                ? "bg-warning/10 border-warning text-warning"
+                : "bg-success/10 border-success text-success"
               : "border-border text-muted-foreground hover:border-primary hover:text-primary"
           }`}
         >
-          {showLiveAircraft ? <Wifi size={13} /> : <WifiOff size={13} />}
           {showLiveAircraft
-            ? `${scanRadius} KM FEED: ON`
+            ? isGlobal ? <Globe size={13} /> : <Wifi size={13} />
+            : <WifiOff size={13} />}
+          {showLiveAircraft
+            ? `${radiusLabel} FEED: ON`
             : hostAuthed
-            ? `${scanRadius} KM FEED: OFF`
+            ? `${radiusLabel} FEED: OFF`
             : <><Lock size={10} className="inline mr-1" />HOST ONLY</>}
         </button>
 
@@ -205,36 +215,31 @@ const PredictionPlatform: React.FC = () => {
         </div>
       </div>
 
-      {/* ── API Status Banner ──────────────────────────────────────────────── */}
+      {/* ── API Status Banner ────────────────────────────────────────────── */}
       {showLiveAircraft && (
         <div
           className={`px-6 py-2 flex flex-wrap items-center gap-3 border-b border-border text-xs ${
-            apiStatus === "error"
-              ? "bg-danger/5"
-              : apiStatus === "limited"
-              ? "bg-warning/5"
-              : "bg-success/5"
+            apiStatus === "error"   ? "bg-danger/5"
+            : apiStatus === "limited" ? "bg-warning/5"
+            : "bg-success/5"
           }`}
         >
           <div
             className={`w-2 h-2 rounded-full shrink-0 ${
-              apiStatus === "error"
-                ? "bg-danger"
-                : apiStatus === "limited"
-                ? "bg-warning animate-pulse"
-                : "bg-success animate-pulse"
+              apiStatus === "error"   ? "bg-danger"
+              : apiStatus === "limited" ? "bg-warning animate-pulse"
+              : "bg-success animate-pulse"
             }`}
           />
           {apiStatus === "ok" && (
             <span className="font-mono text-success">
-              OpenSky · {count} airborne in {scanRadius} km ·{" "}
+              OpenSky · {countLabel} ·{" "}
               {lastUpdated && `Updated ${lastUpdated.toLocaleTimeString()}`}
+              {isGlobal && " · ⚠ Global scan — rate limits likely"}
             </span>
           )}
           {apiStatus === "limited" && (
-            <span className="font-mono text-warning">
-              ⚠ Rate limited — showing last data
-            </span>
+            <span className="font-mono text-warning">⚠ Rate limited — showing last data</span>
           )}
           {apiStatus === "error" && (
             <span className="font-mono text-danger">{error}</span>
@@ -264,7 +269,6 @@ const PredictionPlatform: React.FC = () => {
       )}
 
       <div className="p-4 space-y-4">
-        {/* ── Asset Status ─────────────────────────────────────────────────── */}
         <AircraftStatusCards />
 
         {/* ── Main Layout ──────────────────────────────────────────────────── */}
@@ -278,13 +282,16 @@ const PredictionPlatform: React.FC = () => {
               >
                 <div className="flex items-center gap-3">
                   <span className="font-heading text-xs tracking-widest">
-                    SEARCH MAP · {scanRadius} KM RADIUS
+                    SEARCH MAP · {radiusLabel} RADIUS
                   </span>
                   {showLiveAircraft && (
                     <span className="flex items-center gap-1 text-success">
                       <Radio size={10} className="animate-pulse" />
                       <span className="label-tag text-[9px] text-success">LIVE</span>
                     </span>
+                  )}
+                  {isGlobal && showLiveAircraft && (
+                    <span className="label-tag text-warning text-[9px]">GLOBAL</span>
                   )}
                   {selectedAircraft && (
                     <span className="label-tag text-primary text-[9px]">
@@ -295,10 +302,7 @@ const PredictionPlatform: React.FC = () => {
                 <div className="flex items-center gap-3">
                   {selectedAircraft && (
                     <button
-                      onClick={() => {
-                        setSelectedAircraft(null);
-                        setTimeSinceLKP(0);
-                      }}
+                      onClick={() => { setSelectedAircraft(null); setTimeSinceLKP(0); }}
                       className="label-tag text-muted-foreground hover:text-danger transition-colors text-[9px]"
                     >
                       CLEAR SELECTION
@@ -368,11 +372,9 @@ const PredictionPlatform: React.FC = () => {
             {physicsComputing && (
               <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
             )}
-            {showPhysics ? (
-              <ChevronUp size={14} className="text-muted-foreground" />
-            ) : (
-              <ChevronDown size={14} className="text-muted-foreground" />
-            )}
+            {showPhysics
+              ? <ChevronUp size={14} className="text-muted-foreground" />
+              : <ChevronDown size={14} className="text-muted-foreground" />}
           </button>
           {showPhysics && (
             <div style={{ height: 460 }}>
@@ -395,30 +397,21 @@ const PredictionPlatform: React.FC = () => {
                   DANGER ASSESSMENT
                 </span>
                 <div className="flex-1" />
-                {showDanger ? (
-                  <ChevronUp size={14} className="text-muted-foreground" />
-                ) : (
-                  <ChevronDown size={14} className="text-muted-foreground" />
-                )}
+                {showDanger
+                  ? <ChevronUp size={14} className="text-muted-foreground" />
+                  : <ChevronDown size={14} className="text-muted-foreground" />}
               </button>
               {showDanger && (
                 <div style={{ height: 400 }}>
                   {showLiveAircraft && aircraft.length > 0 ? (
-                    <DangerAssessment
-                      aircraft={aircraft}
-                      weatherMap={weatherMap}
-                      topN={15}
-                    />
+                    <DangerAssessment aircraft={aircraft} weatherMap={weatherMap} topN={15} />
                   ) : (
                     <div className="p-6 text-center">
                       <Plane size={28} className="text-muted-foreground mx-auto mb-3" />
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         Enable the aircraft feed to see danger assessment.
                       </p>
-                      <button
-                        onClick={toggleLive}
-                        className="mt-3 sar-btn-primary text-xs py-1.5 px-3"
-                      >
+                      <button onClick={toggleLive} className="mt-3 sar-btn-primary text-xs py-1.5 px-3">
                         Enable Feed
                       </button>
                     </div>
