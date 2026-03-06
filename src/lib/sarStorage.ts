@@ -76,28 +76,13 @@ export interface RiskAssessmentRow {
 
 /**
  * Bulk-insert a batch of aircraft positions.
- * Purges records older than 24 hours BEFORE inserting to keep the table lean.
- * This creates a rolling 1-day window — old data is deleted, new data saved.
+ * Called after each successful OpenSky fetch (top-N or selected aircraft).
  */
 export async function saveAircraftBatch(
   aircraft: LiveAircraft[],
   scanRadiusKm: number
 ): Promise<void> {
   if (!aircraft.length) return;
-
-  // ── 1. Delete records older than 24 hours ─────────────────────────────
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { error: delErr, count: delCount } = await supabase
-    .from("aircraft_history")
-    .delete()
-    .lt("recorded_at", cutoff);
-  if (delErr) {
-    console.error("[SAR Storage] aircraft_history cleanup:", delErr.message);
-  } else if (delCount) {
-    console.log(`[SAR Storage] Purged ${delCount} aircraft records older than 24h`);
-  }
-
-  // ── 2. Insert fresh batch ─────────────────────────────────────────────
   const rows = aircraft.map((a) => ({
     icao24:             a.icao24,
     callsign:           a.callsign || null,
@@ -113,7 +98,7 @@ export async function saveAircraftBatch(
 
   const { error } = await supabase.from("aircraft_history").insert(rows);
   if (error) console.error("[SAR Storage] aircraft_history insert:", error.message);
-  else console.log(`[SAR Storage] Saved ${rows.length} aircraft history rows (rolling 24h window)`);
+  else console.log(`[SAR Storage] Saved ${rows.length} aircraft history rows`);
 }
 
 /**
