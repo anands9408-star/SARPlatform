@@ -309,7 +309,7 @@ const PredictionPlatform: React.FC = () => {
                 </div>
               </div>
               <div className="text-[9px] text-muted-foreground border-t border-border pt-2">
-                Alerts via Fast2SMS + Resend to<br/>
+                Alerts via Gmail + Fast2SMS to<br/>
                 <span className="text-primary font-mono">+91 8124919993</span> &amp; <span className="text-primary font-mono">anands9408@gmail.com</span>
               </div>
             </div>

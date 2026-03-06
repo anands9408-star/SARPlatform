@@ -2,8 +2,8 @@
  * SAR Notification Edge Function
  * ─────────────────────────────────────────────────────────────────────────────
  * Sends crash/warning alerts via:
- *   • Email  — Resend API   → anands9408@gmail.com
- *   • SMS    — Fast2SMS API → +918124919993  (fast Indian delivery)
+ *   • Email  — Gmail SMTP (App Password) → anands9408@gmail.com
+ *   • SMS    — Fast2SMS API → +918124919993 (fast Indian delivery)
  *              Falls back to Twilio if Fast2SMS key not set.
  *
  * POST body:
@@ -17,11 +17,13 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import { SMTPClient } from "https://deno.land/x/denomailer@1.3.0/mod.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const RECIPIENT_EMAIL = "anands9408@gmail.com";
-const RECIPIENT_PHONE = "+918124919993";
-const RECIPIENT_PHONE_DIGITS = "8124919993"; // Fast2SMS wants 10-digit local number
+const RECIPIENT_EMAIL       = "anands9408@gmail.com";
+const SENDER_EMAIL          = "anands9408@gmail.com";
+const RECIPIENT_PHONE       = "+918124919993";
+const RECIPIENT_PHONE_DIGITS = "8124919993"; // Fast2SMS 10-digit local number
 
 Deno.serve(async (req: Request) => {
   // ── CORS preflight ─────────────────────────────────────────────────────
@@ -51,14 +53,10 @@ Deno.serve(async (req: Request) => {
       `Pos: ${ac.lat?.toFixed(4)}°N, ${ac.lon?.toFixed(4)}°E`
     );
 
-    const smsText =
-      `${emoji} SAR ALERT — ${levelLabel}\n` +
-      summaryLines.join("\n") +
-      `\n[${new Date().toUTCString()}]`;
+    // ── Email via Gmail SMTP ──────────────────────────────────────────────
+    const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD");
 
-    // ── Email via Resend ───────────────────────────────────────────────────
-    const resendKey = Deno.env.get("RESEND_API_KEY");
-    if (resendKey) {
+    if (gmailAppPassword) {
       const htmlRows = aircraft.slice(0, 10).map((ac: any) => `
         <tr style="border-bottom:1px solid #333;">
           <td style="padding:8px;font-family:monospace;color:#00d4ff;">${ac.callsign || ac.icao24}</td>
@@ -68,81 +66,81 @@ Deno.serve(async (req: Request) => {
           <td style="padding:8px;font-family:monospace;">${ac.altitude_ft?.toLocaleString() ?? "?"} ft</td>
           <td style="padding:8px;font-family:monospace;">${ac.lat?.toFixed(4)}°N, ${ac.lon?.toFixed(4)}°E</td>
           <td style="padding:8px;font-size:11px;color:#aaa;">
-            ${(ac.factors || []).slice(0,3).map((f: any) => f.name).join(", ")}
+            ${(ac.factors || []).slice(0, 3).map((f: any) => f.name || f.label).join(", ")}
           </td>
         </tr>
       `).join("");
 
-      const emailPayload = {
-        from: "SAR Platform <onboarding@resend.dev>",
-        to:   [RECIPIENT_EMAIL],
-        subject: `${emoji} SAR ${levelLabel} — ${aircraft.length} Aircraft`,
-        html: `
-          <!DOCTYPE html>
-          <html>
-          <head><meta charset="utf-8"></head>
-          <body style="background:#0a0f1c;color:#e2e8f0;font-family:sans-serif;padding:24px;">
-            <div style="max-width:700px;margin:0 auto;">
-              <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:20px;margin-bottom:16px;">
-                <h1 style="margin:0;font-size:20px;color:${trigger==="CRITICAL"?"#ef4444":trigger==="CRASH"?"#dc2626":"#f97316"};">
-                  ${emoji} SAR ${levelLabel}
-                </h1>
-                <p style="color:#9ca3af;margin:4px 0 0;">${new Date().toUTCString()}</p>
-              </div>
-
-              <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:20px;margin-bottom:16px;">
-                <p style="color:#9ca3af;margin:0 0 12px;">
-                  <strong>${aircraft.length}</strong> aircraft flagged at ${trigger} risk level.
-                </p>
-                <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                  <thead>
-                    <tr style="border-bottom:1px solid #374151;">
-                      <th style="padding:8px;text-align:left;color:#6b7280;">CALLSIGN</th>
-                      <th style="padding:8px;text-align:left;color:#6b7280;">RISK</th>
-                      <th style="padding:8px;text-align:left;color:#6b7280;">ALTITUDE</th>
-                      <th style="padding:8px;text-align:left;color:#6b7280;">POSITION</th>
-                      <th style="padding:8px;text-align:left;color:#6b7280;">FACTORS</th>
-                    </tr>
-                  </thead>
-                  <tbody>${htmlRows}</tbody>
-                </table>
-              </div>
-
-              <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:16px;">
-                <p style="margin:0;font-size:12px;color:#475569;">
-                  This is an automated alert from the SAR (Search Aircraft Rescue) platform.
-                  Immediate action may be required. Monitor the live feed for updates.
-                </p>
-              </div>
+      const htmlBody = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="background:#0a0f1c;color:#e2e8f0;font-family:sans-serif;padding:24px;margin:0;">
+          <div style="max-width:700px;margin:0 auto;">
+            <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:20px;margin-bottom:16px;">
+              <h1 style="margin:0;font-size:20px;color:${trigger==="CRITICAL"?"#ef4444":trigger==="CRASH"?"#dc2626":"#f97316"};">
+                ${emoji} SAR ${levelLabel}
+              </h1>
+              <p style="color:#9ca3af;margin:6px 0 0;font-size:13px;">${new Date().toUTCString()}</p>
             </div>
-          </body>
-          </html>
-        `,
-      };
+            <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:20px;margin-bottom:16px;">
+              <p style="color:#9ca3af;margin:0 0 12px;font-size:14px;">
+                <strong style="color:#e2e8f0;">${aircraft.length}</strong> aircraft flagged at <strong style="color:${trigger==="CRITICAL"?"#ef4444":"#f97316"};">${trigger}</strong> risk level.
+              </p>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="border-bottom:1px solid #374151;">
+                    <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">CALLSIGN</th>
+                    <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">RISK</th>
+                    <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">ALTITUDE</th>
+                    <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">POSITION</th>
+                    <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">FACTORS</th>
+                  </tr>
+                </thead>
+                <tbody>${htmlRows}</tbody>
+              </table>
+            </div>
+            <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:16px;">
+              <p style="margin:0;font-size:12px;color:#475569;line-height:1.5;">
+                This is an automated alert from the <strong style="color:#60a5fa;">SAR (Search Aircraft Rescue)</strong> platform.
+                Immediate action may be required. Monitor the live feed for updates.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
 
       try {
-        const emailRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${resendKey}`,
-            "Content-Type":  "application/json",
+        const client = new SMTPClient({
+          connection: {
+            hostname: "smtp.gmail.com",
+            port: 465,
+            tls: true,
+            auth: {
+              username: SENDER_EMAIL,
+              password: gmailAppPassword,
+            },
           },
-          body: JSON.stringify(emailPayload),
         });
-        const emailData = await emailRes.json();
-        if (!emailRes.ok) {
-          results.email = `Resend error: ${JSON.stringify(emailData)}`;
-          console.error("[SAR Notify] Resend:", emailData);
-        } else {
-          results.email = "sent";
-          console.log("[SAR Notify] Email sent:", emailData.id);
-        }
+
+        await client.send({
+          from: `SAR Platform <${SENDER_EMAIL}>`,
+          to:   RECIPIENT_EMAIL,
+          subject: `${emoji} SAR ${levelLabel} — ${aircraft.length} Aircraft`,
+          html: htmlBody,
+          content: summaryLines.join("\n"),
+        });
+
+        await client.close();
+        results.email = "sent";
+        console.log("[SAR Notify] Gmail sent successfully");
       } catch (e: any) {
-        results.email = `Email exception: ${e.message}`;
-        console.error("[SAR Notify] Email exception:", e);
+        results.email = `Gmail error: ${e.message}`;
+        console.error("[SAR Notify] Gmail exception:", e);
       }
     } else {
-      results.email = "skipped — RESEND_API_KEY not set";
+      results.email = "skipped — GMAIL_APP_PASSWORD not set";
     }
 
     // ── SMS via Fast2SMS (primary — fast Indian delivery) ────────────────
@@ -151,11 +149,11 @@ Deno.serve(async (req: Request) => {
     const twilioToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const twilioFrom  = Deno.env.get("TWILIO_PHONE_NUMBER");
 
-    // Short SMS text (Fast2SMS has a 160-char per segment limit on quick route)
+    // Short SMS text (Fast2SMS quick route: 160 chars per segment)
     const shortSms =
       `SAR ${trigger} ALERT: ` +
       aircraft.slice(0, 3).map((ac: any) =>
-        `${ac.callsign||ac.icao24} Risk:${ac.risk_score}/100 @${ac.altitude_ft}ft`
+        `${ac.callsign || ac.icao24} Risk:${ac.risk_score}/100 @${ac.altitude_ft}ft`
       ).join(" | ") +
       ` [${new Date().toUTCString().slice(17, 25)} UTC]`;
 
@@ -191,7 +189,7 @@ Deno.serve(async (req: Request) => {
       const smsBody = new URLSearchParams({
         From: twilioFrom,
         To:   RECIPIENT_PHONE,
-        Body: smsText.slice(0, 1600),
+        Body: shortSms.slice(0, 1600),
       });
       try {
         const smsRes = await fetch(
@@ -208,7 +206,6 @@ Deno.serve(async (req: Request) => {
         const smsData = await smsRes.json();
         if (!smsRes.ok) {
           results.sms = `Twilio error: ${smsData.message || JSON.stringify(smsData)}`;
-          console.error("[SAR Notify] Twilio:", smsData);
         } else {
           results.sms = "sent (Twilio fallback)";
           console.log("[SAR Notify] Twilio SMS sent:", smsData.sid);
