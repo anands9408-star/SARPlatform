@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
 
+const SEARCH_RADIUS_KM    = 1500;     // 1500 km scan radius
 const REFRESH_INTERVAL_MS = 25_000;  // 25 seconds
 const WEATHER_REFRESH_MS  = 7 * 60 * 1000; // 7 minutes
 
@@ -98,7 +99,7 @@ const PredictionPlatform: React.FC = () => {
       enabled: showLiveAircraft,
       centerLat: lat,
       centerLon: lon,
-      radiusKm: 300,
+      radiusKm: SEARCH_RADIUS_KM,
       refreshInterval: REFRESH_INTERVAL_MS,
       windSpeedMs: weather ? weather.windSpeed * KMH_TO_MS : 5,
       windDirectionDeg: weather ? weather.windDirection : 0,
@@ -161,7 +162,7 @@ const PredictionPlatform: React.FC = () => {
             SAR PREDICTION PLATFORM
           </h1>
           <p className="text-xs text-muted-foreground">
-            S31 · Physics Engine (Web Worker) · 300 km Scan Radius · {REFRESH_INTERVAL_MS / 1000}s refresh
+            S31 · Physics Engine (Web Worker) · {SEARCH_RADIUS_KM} km Scan Radius · {REFRESH_INTERVAL_MS / 1000}s refresh
           </p>
         </div>
         <div className="flex-1" />
@@ -173,7 +174,7 @@ const PredictionPlatform: React.FC = () => {
           >
             <MapPin size={12} className="text-primary" />
             <span className="font-mono text-xs text-foreground">
-              {loading ? "Scanning..." : `${count} aircraft within 300 km`}
+              {loading ? "Scanning..." : `${count} aircraft within ${SEARCH_RADIUS_KM} km`}
             </span>
           </div>
         )}
@@ -187,7 +188,7 @@ const PredictionPlatform: React.FC = () => {
           }`}
         >
           {showLiveAircraft ? <Wifi size={13} /> : <WifiOff size={13} />}
-          {showLiveAircraft ? "300 KM FEED: ON" : hostAuthed ? "300 KM FEED: OFF" : <><Lock size={10} /> HOST ONLY</>}
+          {showLiveAircraft ? `${SEARCH_RADIUS_KM} KM FEED: ON` : hostAuthed ? `${SEARCH_RADIUS_KM} KM FEED: OFF` : <><Lock size={10} /> HOST ONLY</>}
         </button>
 
         <div className="hidden lg:flex items-center gap-3">
@@ -222,7 +223,7 @@ const PredictionPlatform: React.FC = () => {
           />
           {apiStatus === "ok" && (
             <span className="font-mono text-success">
-              OpenSky · {count} airborne in 300 km ·{" "}
+              OpenSky · {count} airborne in {SEARCH_RADIUS_KM} km ·{" "}
               {lastUpdated && `Updated ${lastUpdated.toLocaleTimeString()}`}
             </span>
           )}
@@ -273,7 +274,7 @@ const PredictionPlatform: React.FC = () => {
               >
                 <div className="flex items-center gap-3">
                   <span className="font-heading text-xs tracking-widest">
-                    SEARCH MAP · 300 KM RADIUS
+                    SEARCH MAP · {SEARCH_RADIUS_KM} KM RADIUS
                   </span>
                   {showLiveAircraft && (
                     <span className="flex items-center gap-1 text-success">

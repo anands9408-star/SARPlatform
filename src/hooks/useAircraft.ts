@@ -59,7 +59,7 @@ interface UseAircraftOptions {
   enabled: boolean;
   centerLat: number;
   centerLon: number;
-  radiusKm?: number;           // default 300 km
+  radiusKm?: number;           // default 1500 km
   refreshInterval?: number;    // ms, default 25000
   windSpeedMs?: number;
   windDirectionDeg?: number;
@@ -80,7 +80,7 @@ export function useAircraft({
   enabled,
   centerLat,
   centerLon,
-  radiusKm = 300,
+  radiusKm = 1500,
   refreshInterval = 25000,
   windSpeedMs = 5,
   windDirectionDeg = 0,
