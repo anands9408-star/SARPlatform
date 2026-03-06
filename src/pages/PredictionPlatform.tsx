@@ -2,11 +2,11 @@
  * Prediction Platform — Optimized
  * ─────────────────────────────────────────────────────────────────────────────
  * Changes vs previous version:
- *  • Aircraft feed: 300 km bounded box (not global), 25 s refresh
+ *  • Aircraft feed: bounded box, 25 s refresh
  *  • Physics prediction runs in Web Worker (off main thread)
  *  • Weather refresh: 7 minutes
  *  • LKP localStorage writes only for selected aircraft
- *  • Prediction timer debounced (every 2 s, not every 1 s)
+ *  • Scan radius is now a dynamic slider (100–2000 km) in CoordinatePanel
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -27,13 +27,13 @@ import { buildKinematicState } from "@/lib/predictionEngine";
 import type { LiveAircraft, KinematicState, WeatherData } from "@/types";
 import { SEARCH_ZONES } from "@/constants/sar";
 import {
-  Radio, Wifi, WifiOff, Globe, RefreshCw,
+  Radio, Wifi, WifiOff, RefreshCw,
   Plane, Activity, Calculator, ChevronDown, ChevronUp, MapPin, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
 
-const SEARCH_RADIUS_KM    = 1500;     // 1500 km scan radius
+const DEFAULT_RADIUS_KM   = 1500;    // default scan radius
 const REFRESH_INTERVAL_MS = 25_000;  // 25 seconds
 const WEATHER_REFRESH_MS  = 7 * 60 * 1000; // 7 minutes
 
@@ -43,7 +43,10 @@ const PredictionPlatform: React.FC = () => {
   const [lon, setLon] = useState(77.5946);
   const [altitude, setAltitude] = useState(30000);
 
-  // ── Host auth + live aircraft ──────────────────────────────────────────────
+  // ── Dynamic scan radius ───────────────────────────────────────────────────
+  const [scanRadius, setScanRadius] = useState(DEFAULT_RADIUS_KM);
+
+  // ── Host auth + live aircraft ─────────────────────────────────────────────
   const [showPinGate, setShowPinGate] = useState(false);
   const [hostAuthed, setHostAuthed] = useState(() => isHostAuthenticated());
   const [showLiveAircraft, setShowLiveAircraft] = useState(false);
@@ -81,10 +84,9 @@ const PredictionPlatform: React.FC = () => {
   // ── Timer: elapsed seconds since LKP ─────────────────────────────────────
   const [timeSinceLKP, setTimeSinceLKP] = useState(0);
   useEffect(() => {
-    setTimeSinceLKP(0); // reset on new selection
+    setTimeSinceLKP(0);
   }, [selectedAircraft, lat, lon]);
   useEffect(() => {
-    // Increment every 5 seconds only (reduces re-render rate)
     const timer = setInterval(() => setTimeSinceLKP((t) => t + 5), 5000);
     return () => clearInterval(timer);
   }, []);
@@ -93,13 +95,13 @@ const PredictionPlatform: React.FC = () => {
   const { summary: physicsSummary, computing: physicsComputing } =
     usePredictionWorker(kinematicState, timeSinceLKP);
 
-  // ── Aircraft feed (300 km bounded) ───────────────────────────────────────
+  // ── Aircraft feed (bounded) ───────────────────────────────────────────────
   const { aircraft, count, loading, error, lastUpdated, apiStatus, refresh } =
     useAircraft({
       enabled: showLiveAircraft,
       centerLat: lat,
       centerLon: lon,
-      radiusKm: SEARCH_RADIUS_KM,
+      radiusKm: scanRadius,
       refreshInterval: REFRESH_INTERVAL_MS,
       windSpeedMs: weather ? weather.windSpeed * KMH_TO_MS : 5,
       windDirectionDeg: weather ? weather.windDirection : 0,
@@ -108,12 +110,11 @@ const PredictionPlatform: React.FC = () => {
 
   const toggleLive = () => {
     if (!showLiveAircraft) {
-      // Require host auth before enabling
       if (!hostAuthed) {
         setShowPinGate(true);
         return;
       }
-      toast.success("Connecting — fetching aircraft within 300 km...");
+      toast.success(`Connecting — fetching aircraft within ${scanRadius} km...`);
     } else {
       setSelectedAircraft(null);
       toast.info("Live aircraft feed disabled.");
@@ -140,7 +141,6 @@ const PredictionPlatform: React.FC = () => {
     setWeather(data);
   }, []);
 
-  // Stable reference to weather map (avoid re-renders)
   const weatherMap = weatherMapRef.current;
 
   return (
@@ -162,7 +162,7 @@ const PredictionPlatform: React.FC = () => {
             SAR PREDICTION PLATFORM
           </h1>
           <p className="text-xs text-muted-foreground">
-            S31 · Physics Engine (Web Worker) · {SEARCH_RADIUS_KM} km Scan Radius · {REFRESH_INTERVAL_MS / 1000}s refresh
+            S31 · Physics Engine (Web Worker) · {scanRadius} km Scan Radius · {REFRESH_INTERVAL_MS / 1000}s refresh
           </p>
         </div>
         <div className="flex-1" />
@@ -174,7 +174,7 @@ const PredictionPlatform: React.FC = () => {
           >
             <MapPin size={12} className="text-primary" />
             <span className="font-mono text-xs text-foreground">
-              {loading ? "Scanning..." : `${count} aircraft within ${SEARCH_RADIUS_KM} km`}
+              {loading ? "Scanning..." : `${count} aircraft within ${scanRadius} km`}
             </span>
           </div>
         )}
@@ -188,7 +188,11 @@ const PredictionPlatform: React.FC = () => {
           }`}
         >
           {showLiveAircraft ? <Wifi size={13} /> : <WifiOff size={13} />}
-          {showLiveAircraft ? `${SEARCH_RADIUS_KM} KM FEED: ON` : hostAuthed ? `${SEARCH_RADIUS_KM} KM FEED: OFF` : <><Lock size={10} /> HOST ONLY</>}
+          {showLiveAircraft
+            ? `${scanRadius} KM FEED: ON`
+            : hostAuthed
+            ? `${scanRadius} KM FEED: OFF`
+            : <><Lock size={10} className="inline mr-1" />HOST ONLY</>}
         </button>
 
         <div className="hidden lg:flex items-center gap-3">
@@ -223,7 +227,7 @@ const PredictionPlatform: React.FC = () => {
           />
           {apiStatus === "ok" && (
             <span className="font-mono text-success">
-              OpenSky · {count} airborne in {SEARCH_RADIUS_KM} km ·{" "}
+              OpenSky · {count} airborne in {scanRadius} km ·{" "}
               {lastUpdated && `Updated ${lastUpdated.toLocaleTimeString()}`}
             </span>
           )}
@@ -274,7 +278,7 @@ const PredictionPlatform: React.FC = () => {
               >
                 <div className="flex items-center gap-3">
                   <span className="font-heading text-xs tracking-widest">
-                    SEARCH MAP · {SEARCH_RADIUS_KM} KM RADIUS
+                    SEARCH MAP · {scanRadius} KM RADIUS
                   </span>
                   {showLiveAircraft && (
                     <span className="flex items-center gap-1 text-success">
@@ -322,7 +326,14 @@ const PredictionPlatform: React.FC = () => {
 
           {/* Right panel */}
           <div className="xl:col-span-2 flex flex-col gap-4">
-            <CoordinatePanel lat={lat} lon={lon} onLatChange={setLat} onLonChange={setLon} />
+            <CoordinatePanel
+              lat={lat}
+              lon={lon}
+              onLatChange={setLat}
+              onLonChange={setLon}
+              scanRadius={scanRadius}
+              onScanRadiusChange={setScanRadius}
+            />
             <GlideCalculator altitude={altitude} onAltitudeChange={setAltitude} />
             <WeatherPanel
               lat={lat}
@@ -402,7 +413,7 @@ const PredictionPlatform: React.FC = () => {
                     <div className="p-6 text-center">
                       <Plane size={28} className="text-muted-foreground mx-auto mb-3" />
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        Enable the 300 km aircraft feed to see danger assessment.
+                        Enable the aircraft feed to see danger assessment.
                       </p>
                       <button
                         onClick={toggleLive}
