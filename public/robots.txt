@@ -1,14 +1,13 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+
+# Block sensitive paths
+Disallow: /api/
+Disallow: /.env
+Disallow: /supabase/
+
+# Sitemap
+Sitemap: https://sar-platform.onspace.app/sitemap.xml
+
+# Crawl-delay for bots
+Crawl-delay: 10

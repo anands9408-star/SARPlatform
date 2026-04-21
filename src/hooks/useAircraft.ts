@@ -1,9 +1,11 @@
 
 /**
- * SAR Aircraft Hook — Optimized
+ * SAR Aircraft Hook — Edge Function Proxy Edition
  * ─────────────────────────────────────────────────────────────────────────────
+ * • All OpenSky requests are routed through the `opensky-proxy` Edge Function
+ *   → Eliminates browser CORS failures and hides the upstream API from clients
  * • Bounded box OR global fetch (radiusKm === 0 → no bbox, worldwide)
- * • 25-second refresh (was 15s — reduces rate-limit hits)
+ * • 25-second refresh (reduces rate-limit hits)
  * • Only writes LKP to localStorage for the selected aircraft (not all)
  * • Proper abort + cleanup on unmount / re-fetch
  * • Persists aircraft batch to OnSpace Cloud backend via sarStorage
@@ -15,25 +17,8 @@ import type { LiveAircraft } from "@/types";
 import { PredictionEngine, buildKinematicState } from "@/lib/predictionEngine";
 import { saveAircraftBatch } from "@/lib/sarStorage";
 import { GLOBAL_RADIUS } from "@/components/features/CoordinatePanel";
-
-// ── Bounding box helper ────────────────────────────────────────────────────
-
-const KM_PER_DEG_LAT = 111.32;
-
-function buildBounds(
-  lat: number,
-  lon: number,
-  radiusKm: number
-): { minLat: number; maxLat: number; minLon: number; maxLon: number } {
-  const dLat = radiusKm / KM_PER_DEG_LAT;
-  const dLon = radiusKm / (KM_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180));
-  return {
-    minLat: lat - dLat,
-    maxLat: lat + dLat,
-    minLon: lon - dLon,
-    maxLon: lon + dLon,
-  };
-}
+import { supabase } from "@/lib/supabase";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 // ── OpenSky parser ─────────────────────────────────────────────────────────
 
@@ -97,44 +82,72 @@ export function useAircraft({
   const [apiStatus, setApiStatus]     = useState<"ok" | "limited" | "error" | "idle">("idle");
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const abortRef    = useRef<AbortController | null>(null);
+  const fetchingRef = useRef(false);
 
   const isGlobal = radiusKm === GLOBAL_RADIUS;
 
-  // Bounding box (only computed for bounded mode)
-  const bounds = useMemo(
-    () => (isGlobal ? null : buildBounds(centerLat, centerLon, radiusKm)),
-    [Math.round(centerLat * 2) / 2, Math.round(centerLon * 2) / 2, radiusKm, isGlobal]
-  );
+  // Round coordinates to reduce unnecessary re-fetches
+  const rLat = Math.round(centerLat * 2) / 2;
+  const rLon = Math.round(centerLon * 2) / 2;
 
   const fetchAircraft = useCallback(async () => {
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
+    if (fetchingRef.current) return; // prevent overlapping fetches
+    fetchingRef.current = true;
     setLoading(true);
 
     try {
-      // Build URL — no bbox params when global
-      let url = "https://opensky-network.org/api/states/all";
-      if (!isGlobal && bounds) {
-        url +=
-          `?lamin=${bounds.minLat.toFixed(3)}&lomin=${bounds.minLon.toFixed(3)}` +
-          `&lamax=${bounds.maxLat.toFixed(3)}&lomax=${bounds.maxLon.toFixed(3)}`;
+      // ── Call edge function proxy (avoids browser CORS restrictions) ────
+      const body = isGlobal
+        ? {}
+        : { lat: centerLat, lon: centerLon, radius: radiusKm };
+
+      const { data: rawData, error: fnError } = await supabase.functions.invoke(
+        "opensky-proxy",
+        { body }
+      );
+
+      if (fnError) {
+        let msg = fnError.message;
+        let isRateLimit = false;
+
+        if (fnError instanceof FunctionsHttpError) {
+          try {
+            const status = fnError.context?.status;
+            const text   = await fnError.context?.text();
+            if (status === 429) {
+              isRateLimit = true;
+              msg = "OpenSky rate limited — retrying in 30s";
+            } else {
+              msg = `[${status}] ${text || fnError.message}`;
+            }
+          } catch {
+            msg = fnError.message;
+          }
+        }
+
+        if (isRateLimit) {
+          setApiStatus("limited");
+          setError(msg);
+        } else {
+          setApiStatus("error");
+          setError(`Proxy error: ${msg}`);
+        }
+        return;
       }
 
-      const res = await fetch(url, {
-        signal: abortRef.current.signal,
-        cache: "no-store",
-      });
-
-      if (res.status === 429) {
+      if (rawData?.error === "rate_limited") {
         setApiStatus("limited");
         setError("OpenSky rate limited — retrying in 30s");
         return;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const json   = await res.json();
-      const parsed = parseOpenSkyStates(json.states || []);
+      if (rawData?.error) {
+        setApiStatus("error");
+        setError(`OpenSky error: ${rawData.message || rawData.error}`);
+        return;
+      }
+
+      const parsed = parseOpenSkyStates(rawData?.states || []);
 
       // ── LKP localStorage — selected aircraft only ──────────────────────
       if (selectedIcao24) {
@@ -170,14 +183,14 @@ export function useAircraft({
         `[SAR] ${parsed.length} aircraft ${isGlobal ? "worldwide" : `within ${radiusKm} km`}`
       );
     } catch (err: any) {
-      if (err.name === "AbortError") return;
       console.error("[SAR] Fetch error:", err);
       setApiStatus("error");
-      setError(`API Error: ${err.message || "Network failed"} — using cached data`);
+      setError(`Fetch failed: ${err.message || "Network error"} — using cached data`);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [bounds, isGlobal, radiusKm, windSpeedMs, windDirectionDeg, selectedIcao24]);
+  }, [rLat, rLon, radiusKm, isGlobal, windSpeedMs, windDirectionDeg, selectedIcao24]);
 
   useEffect(() => {
     if (!enabled) {
@@ -192,7 +205,6 @@ export function useAircraft({
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (abortRef.current) abortRef.current.abort();
     };
   }, [enabled, fetchAircraft, refreshInterval]);
 

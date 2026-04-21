@@ -2,12 +2,12 @@
  * Prediction Platform — Optimized
  * ─────────────────────────────────────────────────────────────────────────────
  * Changes vs previous version:
- *  • Aircraft feed: bounded box OR global (GLOBAL_RADIUS sentinel), 25 s refresh
+ *  • Aircraft feed via opensky-proxy Edge Function (no browser CORS issues)
  *  • Physics prediction runs in Web Worker (off main thread)
  *  • Weather refresh: 7 minutes — snapshots persisted to OnSpace Cloud
- *  • LKP localStorage writes only for selected aircraft
- *  • Scan radius: dynamic slider (100–2000 km) + GLOBAL toggle in CoordinatePanel
- *  • Backend: aircraft history + weather snapshots auto-saved
+ *  • Retention config UI (rolling window 6h / 12h / 24h / 48h / 7d)
+ *  • Scan radius: dynamic slider (100–2000 km) + GLOBAL toggle
+ *  • Prototype notice banner for public users
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -25,12 +25,13 @@ import { useAircraft } from "@/hooks/useAircraft";
 import { usePredictionWorker } from "@/hooks/usePredictionWorker";
 import { KMH_TO_MS } from "@/lib/physics";
 import { buildKinematicState } from "@/lib/predictionEngine";
-import { saveWeatherSnapshot } from "@/lib/sarStorage";
+import { saveWeatherSnapshot, getRetentionHours, setRetentionHours } from "@/lib/sarStorage";
 import type { LiveAircraft, KinematicState, WeatherData } from "@/types";
 import { SEARCH_ZONES } from "@/constants/sar";
 import {
   Radio, Wifi, WifiOff, RefreshCw,
   Plane, Activity, Calculator, ChevronDown, ChevronUp, MapPin, Lock, Globe,
+  Database, X, ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
@@ -42,21 +43,34 @@ const DEFAULT_RADIUS_KM   = 1500;
 const REFRESH_INTERVAL_MS = 25_000;
 const WEATHER_REFRESH_MS  = 7 * 60 * 1000;
 
+const RETENTION_OPTIONS = [
+  { label: "6 h",  value: 6 },
+  { label: "12 h", value: 12 },
+  { label: "24 h", value: 24 },
+  { label: "48 h", value: 48 },
+  { label: "7 d",  value: 168 },
+];
+
 const PredictionPlatform: React.FC = () => {
   // ── Target LKP state ─────────────────────────────────────────────────────
   const [lat, setLat]           = useState(12.9716);
   const [lon, setLon]           = useState(77.5946);
   const [altitude, setAltitude] = useState(30000);
 
-  // ── Dynamic scan radius (GLOBAL_RADIUS = 0 means worldwide) ──────────────
+  // ── Dynamic scan radius ───────────────────────────────────────────────────
   const [scanRadius, setScanRadius] = useState(DEFAULT_RADIUS_KM);
   const isGlobal = scanRadius === GLOBAL_RADIUS;
 
   // ── Host auth + live aircraft ─────────────────────────────────────────────
-  const [showPinGate, setShowPinGate]         = useState(false);
-  const [hostAuthed, setHostAuthed]           = useState(() => isHostAuthenticated());
+  const [showPinGate, setShowPinGate]           = useState(false);
+  const [hostAuthed, setHostAuthed]             = useState(() => isHostAuthenticated());
   const [showLiveAircraft, setShowLiveAircraft] = useState(false);
   const [selectedAircraft, setSelectedAircraft] = useState<LiveAircraft | null>(null);
+
+  // ── Prototype banner ──────────────────────────────────────────────────────
+  const [showPrototypeBanner, setShowPrototypeBanner] = useState(() => {
+    return localStorage.getItem("sar_banner_dismissed") !== "1";
+  });
 
   // ── Weather ───────────────────────────────────────────────────────────────
   const [weather, setWeather]   = useState<WeatherData | null>(null);
@@ -65,6 +79,15 @@ const PredictionPlatform: React.FC = () => {
   // ── UI collapse states ────────────────────────────────────────────────────
   const [showPhysics, setShowPhysics] = useState(true);
   const [showDanger, setShowDanger]   = useState(true);
+
+  // ── Retention config ──────────────────────────────────────────────────────
+  const [retentionHours, setRetentionHoursState] = useState(getRetentionHours);
+
+  const handleRetentionChange = (hours: number) => {
+    setRetentionHours(hours);
+    setRetentionHoursState(hours);
+    toast.success(`Data retention set to ${hours >= 168 ? "7 days" : `${hours}h`}`);
+  };
 
   // ── Kinematic state ───────────────────────────────────────────────────────
   const kinematicState: KinematicState = useMemo(() => {
@@ -105,7 +128,7 @@ const PredictionPlatform: React.FC = () => {
       enabled:          showLiveAircraft,
       centerLat:        lat,
       centerLon:        lon,
-      radiusKm:         scanRadius,          // 0 = global
+      radiusKm:         scanRadius,
       refreshInterval:  REFRESH_INTERVAL_MS,
       windSpeedMs:      weather ? weather.windSpeed * KMH_TO_MS : 5,
       windDirectionDeg: weather ? weather.windDirection : 0,
@@ -117,7 +140,7 @@ const PredictionPlatform: React.FC = () => {
       if (!hostAuthed) { setShowPinGate(true); return; }
       toast.success(
         isGlobal
-          ? "Connecting — global aircraft scan active (no bounding box)..."
+          ? "Connecting — global aircraft scan active..."
           : `Connecting — fetching aircraft within ${scanRadius} km...`
       );
     } else {
@@ -128,11 +151,11 @@ const PredictionPlatform: React.FC = () => {
   };
 
   // ── Alert cooldown controls ────────────────────────────────────────────
-  const [cooldownMin, setCooldownMin]     = useState(10);   // minutes
+  const [cooldownMin, setCooldownMin]     = useState(10);
   const [alertEnabled, setAlertEnabled]   = useState(true);
   const [showCooldownPanel, setShowCooldownPanel] = useState(false);
 
-  // ── Risk auto-alert callback (from DangerAssessment) ──────────────────
+  // ── Risk auto-alert callback ───────────────────────────────────────────
   const handleHighRisk = useCallback((highRisk: DangerScore[]) => {
     if (!alertEnabled) return;
     const toAlert: NotifyAircraft[] = highRisk.map((s) => ({
@@ -156,44 +179,40 @@ const PredictionPlatform: React.FC = () => {
     setTestAlertLoading(true);
     toast.info("Sending test CRITICAL alert — check email & SMS…");
 
-    const mockAircraft: NotifyAircraft[] = [
-      {
-        icao24:      "TEST01",
-        callsign:    "SAR-TEST",
-        lat:         lat,
-        lon:         lon,
-        altitude_ft: 1200,
-        risk_score:  87,
-        risk_level:  "CRITICAL",
-        factors: [
-          { name: "Low Altitude",    value: "1,200 ft",  points: 35 },
-          { name: "Rapid Descent",   value: "-2,400 ft/min", points: 30 },
-          { name: "Extreme Weather", value: "Thunderstorm",  points: 22 },
-        ],
-      },
-    ];
+    const mockAircraft: NotifyAircraft[] = [{
+      icao24:      "TEST01",
+      callsign:    "SAR-TEST",
+      lat, lon,
+      altitude_ft: 1200,
+      risk_score:  87,
+      risk_level:  "CRITICAL",
+      factors: [
+        { name: "Low Altitude",    value: "1,200 ft",      points: 35 },
+        { name: "Rapid Descent",   value: "-2,400 ft/min", points: 30 },
+        { name: "Extreme Weather", value: "Thunderstorm",  points: 22 },
+      ],
+    }];
 
-    // Bypass cooldown for test by calling the edge function directly
     const { supabase: sb } = await import("@/lib/supabase");
     const { FunctionsHttpError } = await import("@supabase/supabase-js");
 
-    const { data, error } = await sb.functions.invoke("sar-notify", {
+    const { data, error: fnErr } = await sb.functions.invoke("sar-notify", {
       body: { trigger: "CRITICAL", aircraft: mockAircraft },
     });
 
-    if (error) {
-      let msg = error.message;
-      if (error instanceof FunctionsHttpError) {
-        try { msg = `[${error.context?.status}] ${await error.context?.text()}`; } catch { /* ignore */ }
+    if (fnErr) {
+      let msg = fnErr.message;
+      if (fnErr instanceof FunctionsHttpError) {
+        try { msg = `[${fnErr.context?.status}] ${await fnErr.context?.text()}`; } catch { /* ignore */ }
       }
       toast.error(`Test alert failed: ${msg}`);
     } else {
       const r = data?.results ?? {};
       const parts: string[] = [];
-      if (r.email === "sent")  parts.push("Email sent");
-      else if (r.email)        parts.push(`Email: ${r.email}`);
-      if (r.sms === "sent")    parts.push("SMS sent");
-      else if (r.sms)          parts.push(`SMS: ${r.sms}`);
+      if (r.email === "sent") parts.push("Email sent");
+      else if (r.email)       parts.push(`Email: ${r.email}`);
+      if (r.sms === "sent")   parts.push("SMS sent");
+      else if (r.sms)         parts.push(`SMS: ${r.sms}`);
       toast.success(`Test alert dispatched — ${parts.join(" · ") || "check logs"}`);
     }
     setTestAlertLoading(false);
@@ -214,15 +233,14 @@ const PredictionPlatform: React.FC = () => {
     toast.success(`Tracking: ${ac.callsign} · Physics prediction active`);
   }, []);
 
-  // Weather update — persist snapshot to OnSpace Cloud
   const handleWeatherUpdate = useCallback((data: WeatherData) => {
     setWeather(data);
-    saveWeatherSnapshot(lat, lon, data); // fire-and-forget
+    saveWeatherSnapshot(lat, lon, data);
   }, [lat, lon]);
 
-  const weatherMap    = weatherMapRef.current;
-  const radiusLabel   = isGlobal ? "GLOBAL" : `${scanRadius} KM`;
-  const countLabel    = isGlobal ? `${count} aircraft worldwide` : `${count} aircraft within ${scanRadius} km`;
+  const weatherMap  = weatherMapRef.current;
+  const radiusLabel = isGlobal ? "GLOBAL" : `${scanRadius} KM`;
+  const countLabel  = isGlobal ? `${count} aircraft worldwide` : `${count} aircraft within ${scanRadius} km`;
 
   return (
     <div className="min-h-screen pt-16" style={{ background: "hsl(var(--background))" }}>
@@ -233,7 +251,32 @@ const PredictionPlatform: React.FC = () => {
         />
       )}
 
-      {/* ── Page Header ────────────────────────────────────────────────────── */}
+      {/* ── Prototype Banner ─────────────────────────────────────────────── */}
+      {showPrototypeBanner && (
+        <div
+          className="px-4 py-2 flex items-center gap-3 text-xs border-b border-warning/30"
+          style={{ background: "hsl(var(--warning) / 0.08)" }}
+        >
+          <ShieldAlert size={13} className="text-warning shrink-0" />
+          <span className="text-warning font-mono flex-1">
+            <strong>PROTOTYPE</strong> — This is a research-grade aviation monitoring tool.
+            Data is sourced from public APIs and is provided for situational awareness only.
+            Not certified for operational SAR use. Always defer to official aviation authorities.
+          </span>
+          <button
+            onClick={() => {
+              localStorage.setItem("sar_banner_dismissed", "1");
+              setShowPrototypeBanner(false);
+            }}
+            className="shrink-0 p-1 rounded hover:bg-warning/20 text-warning transition-colors"
+            title="Dismiss"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div
         className="px-6 py-3 border-b border-border flex flex-wrap items-center gap-3"
         style={{ background: "hsl(var(--surface))" }}
@@ -243,12 +286,12 @@ const PredictionPlatform: React.FC = () => {
             SAR PREDICTION PLATFORM
           </h1>
           <p className="text-xs text-muted-foreground">
-            S31 · Physics Engine (Web Worker) · {radiusLabel} Scan · {REFRESH_INTERVAL_MS / 1000}s refresh · Backend ✓
+            S31 · Physics Engine (Web Worker) · {radiusLabel} Scan · {REFRESH_INTERVAL_MS / 1000}s refresh · Edge Proxy ✓
           </p>
         </div>
         <div className="flex-1" />
 
-        {/* Alert Cooldown Controls */}
+        {/* Alert + Retention Controls */}
         <div className="relative">
           <button
             onClick={() => setShowCooldownPanel((v) => !v)}
@@ -257,17 +300,21 @@ const PredictionPlatform: React.FC = () => {
                 ? "border-primary/50 text-primary hover:bg-primary/10"
                 : "border-border text-muted-foreground hover:border-primary/30"
             }`}
-            title="Alert cooldown & notification settings"
+            title="Alert cooldown & data retention settings"
           >
             <Radio size={11} />
             ALERTS {alertEnabled ? "ON" : "OFF"}
           </button>
           {showCooldownPanel && (
             <div
-              className="absolute right-0 top-full mt-1 z-50 w-64 rounded border border-border p-3 space-y-3 shadow-xl"
+              className="absolute right-0 top-full mt-1 z-50 w-72 rounded border border-border p-3 space-y-3 shadow-xl"
               style={{ background: "hsl(var(--surface))" }}
             >
-              <div className="font-heading text-xs font-700 tracking-widest border-b border-border pb-2">NOTIFICATION SETTINGS</div>
+              <div className="font-heading text-xs font-700 tracking-widest border-b border-border pb-2">
+                NOTIFICATION &amp; DATA SETTINGS
+              </div>
+
+              {/* Alert toggle */}
               <label className="flex items-center justify-between gap-2">
                 <span className="label-tag text-[9px]">EMAIL + SMS ALERTS</span>
                 <button
@@ -281,8 +328,10 @@ const PredictionPlatform: React.FC = () => {
                   }`} />
                 </button>
               </label>
+
+              {/* Cooldown slider */}
               <div className="space-y-1">
-                <label className="label-tag text-[9px] block">COOLDOWN (same aircraft)</label>
+                <label className="label-tag text-[9px] block">ALERT COOLDOWN (same aircraft)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="range" min={1} max={60} step={1}
@@ -308,6 +357,36 @@ const PredictionPlatform: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* ── Retention config ─────────────────────────────────── */}
+              <div className="space-y-1 border-t border-border pt-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Database size={9} className="text-primary" />
+                  <label className="label-tag text-[9px]">DATA RETENTION WINDOW</label>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {RETENTION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleRetentionChange(opt.value)}
+                      className={`text-[9px] px-2 py-0.5 rounded font-mono border transition-all ${
+                        retentionHours === opt.value
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[9px] text-muted-foreground leading-relaxed">
+                  Records older than this window are auto-deleted before each save.
+                  Currently: <span className="text-primary font-mono">
+                    {retentionHours >= 168 ? "7 days" : `${retentionHours}h`}
+                  </span>
+                </p>
+              </div>
+
               <div className="text-[9px] text-muted-foreground border-t border-border pt-2">
                 Alerts via Gmail + Fast2SMS to<br/>
                 <span className="text-primary font-mono">+91 8124919993</span> &amp; <span className="text-primary font-mono">anands9408@gmail.com</span>
@@ -391,7 +470,7 @@ const PredictionPlatform: React.FC = () => {
           />
           {apiStatus === "ok" && (
             <span className="font-mono text-success">
-              OpenSky · {countLabel} ·{" "}
+              OpenSky (via Proxy) · {countLabel} ·{" "}
               {lastUpdated && `Updated ${lastUpdated.toLocaleTimeString()}`}
               {isGlobal && " · ⚠ Global scan — rate limits likely"}
             </span>
@@ -429,7 +508,7 @@ const PredictionPlatform: React.FC = () => {
       <div className="p-4 space-y-4">
         <AircraftStatusCards />
 
-        {/* ── Main Layout ──────────────────────────────────────────────────── */}
+        {/* ── Main Layout ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
           {/* Map */}
           <div className="xl:col-span-3">

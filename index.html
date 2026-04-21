@@ -1,40 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- Google Search Console Verification -->
     <meta name="google-site-verification" content="5xdGO6jBklQjGanYVNgeLIVzsps2jhz1LlDl7lPhUTM" />
+
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/assets/sar-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SAR — Search Aircraft Rescue Platform</title>
-    <meta name="description" content="SAR S31 — Search Aircraft Rescue Prediction Platform with live map, probabilistic search zones, glide radius calculator, and mission control dashboard." />
-    <meta name="keywords" content="SAR, search and rescue, aircraft rescue, flight tracking, mission control, emergency aviation" />
 
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="SAR — Search Aircraft Rescue Platform" />
-    <meta property="og:description" content="Real-time mission monitoring with probabilistic search zones, aircraft tracking, and weather intelligence." />
-    <meta property="og:image" content="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=630&fit=crop" />
-    <meta property="og:image:width" content="1200" />
+    <!-- Canonical & Favicon -->
+    <link rel="icon" type="image/png" href="/src/assets/sar-logo.png" />
+    <link rel="canonical" href="https://sar-platform.onspace.app/" />
+
+    <!-- ── Primary SEO ──────────────────────────────────────────────────── -->
+    <title>SAR — Search Aircraft Rescue Platform | Real-Time Aviation Monitoring</title>
+    <meta name="description" content="SAR S31 — Real-time Search and Rescue platform for aviation emergency response. Live aircraft tracking, physics-based crash prediction, weather intelligence, ELT triangulation, and mission coordination." />
+    <meta name="keywords" content="SAR, search and rescue, aircraft rescue, flight tracking, aviation emergency, crash prediction, ELT triangulation, mission control, OpenSky, weather aviation" />
+    <meta name="author" content="SAR Platform" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0a0f1c" />
+
+    <!-- ── Open Graph (Facebook / LinkedIn) ────────────────────────────── -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content="https://sar-platform.onspace.app/" />
+    <meta property="og:title"       content="SAR — Search Aircraft Rescue Platform" />
+    <meta property="og:description" content="Real-time aviation emergency response with live aircraft tracking, physics-based crash prediction, ELT triangulation, and multi-channel alert notifications." />
+    <meta property="og:image"       content="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=630&fit=crop" />
+    <meta property="og:image:width"  content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:site_name"   content="SAR Platform" />
+    <meta property="og:locale"      content="en_IN" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SAR — Search Aircraft Rescue Platform" />
-    <meta name="twitter:description" content="Real-time SAR mission monitoring with live map and probabilistic search zones." />
-    <meta name="twitter:image" content="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=630&fit=crop" />
+    <!-- ── Twitter Card ────────────────────────────────────────────────── -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:site"        content="@SARPlatform" />
+    <meta name="twitter:title"       content="SAR — Search Aircraft Rescue Platform" />
+    <meta name="twitter:description" content="Real-time SAR mission monitoring with live map, probabilistic search zones, crash prediction and weather intelligence." />
+    <meta name="twitter:image"       content="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=630&fit=crop" />
 
+    <!-- ── Structured Data (JSON-LD) ───────────────────────────────────── -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebSite",
+      "@type": "WebApplication",
       "name": "SAR — Search Aircraft Rescue Platform",
-      "url": "https://www.onspace.ai",
-      "description": "SAR S31 Prediction Platform for real-time mission monitoring and aircraft search zone analysis."
+      "url": "https://sar-platform.onspace.app/",
+      "description": "Real-time aviation emergency response platform with live aircraft tracking, physics-based crash prediction, ELT signal triangulation, weather intelligence, and multi-channel alert notifications.",
+      "applicationCategory": "EmergencyManagementApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "SAR Platform Team"
+      },
+      "featureList": [
+        "Real-time aircraft tracking via OpenSky Network",
+        "Physics-based crash prediction engine",
+        "ELT signal triangulation",
+        "Weather intelligence integration",
+        "Multi-channel alert notifications",
+        "Mission coordination dashboard"
+      ]
     }
     </script>
 
+    <!-- ── Fonts ─────────────────────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
   </head>
   <body>
     <div id="root"></div>
