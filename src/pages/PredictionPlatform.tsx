@@ -21,6 +21,9 @@ import CoordinatePanel, { GLOBAL_RADIUS } from "@/components/features/Coordinate
 import DangerAssessment from "@/components/features/DangerAssessment";
 import PhysicsPanel from "@/components/features/PhysicsPanel";
 import WeatherPanel from "@/components/features/WeatherPanel";
+import AIPredictionPanel from "@/components/features/AIPredictionPanel";
+import CommSatellitePanel from "@/components/features/CommSatellitePanel";
+import ViewerAccessManager from "@/components/features/ViewerAccessManager";
 import { useAircraft } from "@/hooks/useAircraft";
 import { usePredictionWorker } from "@/hooks/usePredictionWorker";
 import { KMH_TO_MS } from "@/lib/physics";
@@ -31,10 +34,10 @@ import { SEARCH_ZONES } from "@/constants/sar";
 import {
   Radio, Wifi, WifiOff, RefreshCw,
   Plane, Activity, Calculator, ChevronDown, ChevronUp, MapPin, Lock, Globe,
-  Database, X, ShieldAlert,
+  Database, X, ShieldAlert, Brain, Satellite,
 } from "lucide-react";
 import { toast } from "sonner";
-import { HostPinGate, isHostAuthenticated } from "@/components/features/HostPinGate";
+import { HostPinGate, isHostAuthenticated, isViewerAuthenticated, type AuthLevel } from "@/components/features/HostPinGate";
 import { sendSARAlert } from "@/lib/notifications";
 import type { NotifyAircraft } from "@/lib/notifications";
 import type { DangerScore } from "@/types";
@@ -61,10 +64,18 @@ const PredictionPlatform: React.FC = () => {
   const [scanRadius, setScanRadius] = useState(DEFAULT_RADIUS_KM);
   const isGlobal = scanRadius === GLOBAL_RADIUS;
 
-  // ── Host auth + live aircraft ─────────────────────────────────────────────
+  // ── Host / viewer auth ────────────────────────────────────────────────────
   const [showPinGate, setShowPinGate]           = useState(false);
   const [hostAuthed, setHostAuthed]             = useState(() => isHostAuthenticated());
+  const [viewerAuthed, setViewerAuthed]         = useState(() => isViewerAuthenticated());
+  const isAnyAuthed = hostAuthed || viewerAuthed;
   const [showLiveAircraft, setShowLiveAircraft] = useState(false);
+
+  // ── AI prediction + satellite panel ─────────────────────────────────────
+  const [showAIPanel, setShowAIPanel]           = useState(false);
+  const [showSatPanel, setShowSatPanel]         = useState(false);
+  const [showViewerMgr, setShowViewerMgr]       = useState(false);
+  const [selectedDangerScore, setSelectedDangerScore] = useState<DangerScore | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<LiveAircraft | null>(null);
 
   // ── Prototype banner ──────────────────────────────────────────────────────
@@ -137,7 +148,7 @@ const PredictionPlatform: React.FC = () => {
 
   const toggleLive = () => {
     if (!showLiveAircraft) {
-      if (!hostAuthed) { setShowPinGate(true); return; }
+      if (!isAnyAuthed) { setShowPinGate(true); return; }
       toast.success(
         isGlobal
           ? "Connecting — global aircraft scan active..."
@@ -218,11 +229,16 @@ const PredictionPlatform: React.FC = () => {
     setTestAlertLoading(false);
   };
 
-  const handlePinSuccess = () => {
+  const handlePinSuccess = (level: AuthLevel) => {
     setShowPinGate(false);
-    setHostAuthed(true);
+    if (level === "host") {
+      setHostAuthed(true);
+      toast.success("Host authenticated — full platform access enabled.");
+    } else {
+      setViewerAuthed(true);
+      toast.success("Viewer access granted — live feed enabled (read-only).");
+    }
     setShowLiveAircraft(true);
-    toast.success("Host authenticated — live feed enabled.");
   };
 
   const handleAircraftClick = useCallback((ac: LiveAircraft) => {
@@ -230,8 +246,15 @@ const PredictionPlatform: React.FC = () => {
     setTimeSinceLKP(0);
     setLat(ac.lat);
     setLon(ac.lon);
-    toast.success(`Tracking: ${ac.callsign} · Physics prediction active`);
+    toast.success(`Tracking: ${ac.callsign} · Physics + AI prediction ready`);
   }, []);
+
+  const handleHighRiskWithScore = useCallback((highRisk: DangerScore[]) => {
+    // Store top CRITICAL score for AI panel auto-population
+    const top = highRisk.find((s) => s.level === "CRITICAL") ?? highRisk[0];
+    if (top) setSelectedDangerScore(top);
+    handleHighRisk(highRisk);
+  }, [handleHighRisk]);
 
   const handleWeatherUpdate = useCallback((data: WeatherData) => {
     setWeather(data);
@@ -437,9 +460,9 @@ const PredictionPlatform: React.FC = () => {
             : <WifiOff size={13} />}
           {showLiveAircraft
             ? `${radiusLabel} FEED: ON`
-            : hostAuthed
+            : isAnyAuthed
             ? `${radiusLabel} FEED: OFF`
-            : <><Lock size={10} className="inline mr-1" />HOST ONLY</>}
+            : <><Lock size={10} className="inline mr-1" />LOGIN</>}
         </button>
 
         <div className="hidden lg:flex items-center gap-3">
@@ -620,6 +643,91 @@ const PredictionPlatform: React.FC = () => {
           )}
         </div>
 
+        {/* ── AI Prediction Engine Panel ──────────────────────────────────── */}
+        <div className="sar-card hud-border overflow-hidden">
+          <button
+            onClick={() => setShowAIPanel((v) => !v)}
+            className="w-full px-4 py-3 border-b border-border flex items-center gap-2 hover:bg-secondary/20 transition-colors"
+            style={{ background: "hsl(var(--surface))" }}
+          >
+            <Brain size={14} className="text-primary" />
+            <span className="font-heading text-sm font-700 tracking-widest">
+              AI PREDICTION ENGINE
+            </span>
+            <span className="label-tag text-primary ml-1 text-[9px]">OnSpace AI · Gemini 3 Flash</span>
+            {selectedAircraft && (
+              <span className="label-tag text-primary ml-2">
+                Ready: {selectedAircraft.callsign}
+              </span>
+            )}
+            <div className="flex-1" />
+            {showAIPanel
+              ? <ChevronUp size={14} className="text-muted-foreground" />
+              : <ChevronDown size={14} className="text-muted-foreground" />}
+          </button>
+          {showAIPanel && (
+            <AIPredictionPanel
+              aircraft={selectedAircraft}
+              physicsSummary={physicsSummary}
+              weather={weather}
+              riskScore={selectedDangerScore?.score}
+              riskLevel={selectedDangerScore?.level}
+              riskFactors={selectedDangerScore?.factors?.map((f) => ({
+                name: f.name,
+                value: f.value,
+                points: f.points,
+              }))}
+            />
+          )}
+        </div>
+
+        {/* ── Communication Satellites Panel ─────────────────────────────── */}
+        <div className="sar-card hud-border overflow-hidden">
+          <button
+            onClick={() => setShowSatPanel((v) => !v)}
+            className="w-full px-4 py-3 border-b border-border flex items-center gap-2 hover:bg-secondary/20 transition-colors"
+            style={{ background: "hsl(var(--surface))" }}
+          >
+            <Satellite size={14} className="text-primary" />
+            <span className="font-heading text-sm font-700 tracking-widest">
+              COMMUNICATION SATELLITES
+            </span>
+            <span className="label-tag ml-2 text-[9px]">ADS-B · LEO/GEO networks</span>
+            <div className="flex-1" />
+            {!hostAuthed && (
+              <span className="flex items-center gap-1 label-tag text-muted-foreground text-[9px]">
+                <Lock size={9} /> Host controls
+              </span>
+            )}
+            {showSatPanel
+              ? <ChevronUp size={14} className="text-muted-foreground" />
+              : <ChevronDown size={14} className="text-muted-foreground" />}
+          </button>
+          {showSatPanel && <CommSatellitePanel isHostAuth={hostAuthed} />}
+        </div>
+
+        {/* ── Viewer Access Manager (host only) ──────────────────────────── */}
+        {hostAuthed && (
+          <div className="sar-card hud-border overflow-hidden">
+            <button
+              onClick={() => setShowViewerMgr((v) => !v)}
+              className="w-full px-4 py-3 border-b border-border flex items-center gap-2 hover:bg-secondary/20 transition-colors"
+              style={{ background: "hsl(var(--surface))" }}
+            >
+              <Brain size={14} className="text-primary" />
+              <span className="font-heading text-sm font-700 tracking-widest">
+                SUBSCRIBER ACCESS MANAGER
+              </span>
+              <span className="label-tag ml-2 text-[9px] text-primary">Host only · Monthly PINs</span>
+              <div className="flex-1" />
+              {showViewerMgr
+                ? <ChevronUp size={14} className="text-muted-foreground" />
+                : <ChevronDown size={14} className="text-muted-foreground" />}
+            </button>
+            {showViewerMgr && <ViewerAccessManager />}
+          </div>
+        )}
+
         {/* ── Danger Assessment + Resource Table + Timeline ──────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-1">
@@ -645,7 +753,7 @@ const PredictionPlatform: React.FC = () => {
                       aircraft={aircraft}
                       weatherMap={weatherMap}
                       topN={15}
-                      onHighRisk={handleHighRisk}
+                      onHighRisk={handleHighRiskWithScore}
                       autoSaveIntervalSec={120}
                     />
                   ) : (
