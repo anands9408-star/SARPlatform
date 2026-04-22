@@ -2,15 +2,15 @@
  * SAR Auth Context — Email + OTP session management
  * ─────────────────────────────────────────────────────────────────────────────
  * Role-based access:
- *   "host"   — full platform access
- *   "viewer" — limited: AI prediction, Danger Assessment, Live Weather,
- *              aircraft feed capped at 500 km radius
+ *   "host"        — full platform access
+ *   "viewer"      — AI prediction, Danger Assessment, Weather, 500 km cap
+ *   "free_viewer" — read-only map + weather, no AI, no live feed
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import React, { useState, useCallback, createContext, useContext } from "react";
 
-export type UserRole = "host" | "viewer";
+export type UserRole = "host" | "viewer" | "free_viewer";
 
 export interface SARUser {
   email: string;
@@ -54,6 +54,7 @@ interface AuthContextValue {
   logout: () => void;
   isHost: boolean;
   isViewer: boolean;
+  isFreeViewer: boolean;
   isAuthenticated: boolean;
 }
 
@@ -63,6 +64,7 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
   isHost: false,
   isViewer: false,
+  isFreeViewer: false,
   isAuthenticated: false,
 });
 
@@ -86,8 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         login,
         logout,
-        isHost: user?.role === "host",
-        isViewer: user?.role === "viewer",
+        isHost:        user?.role === "host",
+        isViewer:      user?.role === "viewer",
+        isFreeViewer:  user?.role === "free_viewer",
         isAuthenticated: !!user,
       },
     },

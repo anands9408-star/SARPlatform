@@ -1,11 +1,9 @@
 /**
  * Prediction Platform — Role-Gated Edition
  * ─────────────────────────────────────────────────────────────────────────────
- * HOST access:  Full platform — all panels, all radius options, all controls
- * VIEWER access: AI Prediction, Danger Assessment, Live Weather ONLY
- *                Scan radius capped at 500 km
- *                Physics/kinematics panel hidden
- *                Alert controls, retention, satellite panels hidden
+ * HOST access:       Full platform — all panels, all radius options, all controls
+ * VIEWER access:      AI Prediction, Danger Assessment, Live Weather, 500 km cap
+ * FREE_VIEWER access: Read-only map + weather only, no live feed, no AI
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -52,28 +50,26 @@ const RETENTION_OPTIONS = [
 ];
 
 const PredictionPlatform: React.FC = () => {
-  const { isHost, isViewer, user } = useAuth();
+  const { isHost, isViewer, isFreeViewer, user } = useAuth();
 
   // ── Target / LKP state ────────────────────────────────────────────────
   const [lat, setLat]           = useState(12.9716);
   const [lon, setLon]           = useState(77.5946);
   const [altitude, setAltitude] = useState(30000);
 
-  // ── Scan radius — subscribers capped at 500 km ───────────────────────
+  // ── Scan radius — subscribers capped, free viewers locked ─────────────
   const [scanRadius, setScanRadius] = useState(
-    isViewer ? SUBSCRIBER_MAX_RADIUS : DEFAULT_RADIUS_KM
+    (isViewer || isFreeViewer) ? SUBSCRIBER_MAX_RADIUS : DEFAULT_RADIUS_KM
   );
   const isGlobal = scanRadius === GLOBAL_RADIUS;
 
   const handleScanRadiusChange = (r: number) => {
+    if (isFreeViewer) { toast.error("Free viewers cannot change scan radius."); return; }
     if (isViewer && r !== 0 && r > SUBSCRIBER_MAX_RADIUS) {
-      toast.error(`Viewer access is limited to ${SUBSCRIBER_MAX_RADIUS} km scan radius.`);
+      toast.error(`Subscriber access is limited to ${SUBSCRIBER_MAX_RADIUS} km scan radius.`);
       return;
     }
-    if (isViewer && r === 0) {
-      toast.error("Global scan requires Host access.");
-      return;
-    }
+    if (isViewer && r === 0) { toast.error("Global scan requires Host access."); return; }
     setScanRadius(r);
   };
 
@@ -261,14 +257,17 @@ const PredictionPlatform: React.FC = () => {
 
       {/* ── Role Banner ───────────────────────────────────────────────────── */}
       {isViewer && (
-        <div
-          className="px-4 py-1.5 flex items-center gap-2 border-b border-primary/20 text-[10px] font-mono"
-          style={{ background: "hsl(var(--primary) / 0.05)" }}
-        >
+        <div className="px-4 py-1.5 flex items-center gap-2 border-b border-primary/20 text-[10px] font-mono"
+          style={{ background: "hsl(var(--primary) / 0.05)" }}>
           <Eye size={10} className="text-primary shrink-0" />
-          <span className="text-primary">
-            Viewer access — AI Prediction, Danger Assessment & Weather active · Scan radius capped at {SUBSCRIBER_MAX_RADIUS} km
-          </span>
+          <span className="text-primary">Subscriber — AI Prediction, Danger Assessment &amp; Weather active · Scan radius capped at {SUBSCRIBER_MAX_RADIUS} km</span>
+        </div>
+      )}
+      {isFreeViewer && (
+        <div className="px-4 py-1.5 flex items-center gap-2 border-b border-success/20 text-[10px] font-mono"
+          style={{ background: "hsl(130 50% 35% / 0.06)" }}>
+          <Eye size={10} className="text-success shrink-0" />
+          <span className="text-success">Free View — Live map &amp; weather only · Subscribe via anands9408@gmail.com for full access</span>
         </div>
       )}
 
@@ -282,7 +281,7 @@ const PredictionPlatform: React.FC = () => {
             SAR PREDICTION PLATFORM
           </h1>
           <p className="text-xs text-muted-foreground">
-            {isHost ? "Host" : "Viewer"} · {radiusLabel} Scan · {REFRESH_INTERVAL_MS / 1000}s refresh · Edge Proxy ✓
+            {isHost ? "Host" : isFreeViewer ? "Free Viewer" : "Subscriber"} · {radiusLabel} Scan · {REFRESH_INTERVAL_MS / 1000}s refresh · Edge Proxy ✓
           </p>
         </div>
         <div className="flex-1" />
@@ -373,22 +372,24 @@ const PredictionPlatform: React.FC = () => {
           </div>
         )}
 
-        {/* Feed toggle */}
-        <button
-          onClick={toggleLive}
-          className={`flex items-center gap-2 px-4 py-2 rounded font-heading text-xs font-700 tracking-wide border transition-all ${
-            showLiveAircraft
-              ? isGlobal
-                ? "bg-warning/10 border-warning text-warning"
-                : "bg-success/10 border-success text-success"
-              : "border-border text-muted-foreground hover:border-primary hover:text-primary"
-          }`}
-        >
-          {showLiveAircraft
-            ? isGlobal ? <Globe size={13} /> : <Wifi size={13} />
-            : <WifiOff size={13} />}
-          {showLiveAircraft ? `${radiusLabel} FEED: ON` : `${radiusLabel} FEED: OFF`}
-        </button>
+        {/* Feed toggle — hidden for free viewers */}
+        {!isFreeViewer && (
+          <button
+            onClick={toggleLive}
+            className={`flex items-center gap-2 px-4 py-2 rounded font-heading text-xs font-700 tracking-wide border transition-all ${
+              showLiveAircraft
+                ? isGlobal
+                  ? "bg-warning/10 border-warning text-warning"
+                  : "bg-success/10 border-success text-success"
+                : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+            }`}
+          >
+            {showLiveAircraft
+              ? isGlobal ? <Globe size={13} /> : <Wifi size={13} />
+              : <WifiOff size={13} />}
+            {showLiveAircraft ? `${radiusLabel} FEED: ON` : `${radiusLabel} FEED: OFF`}
+          </button>
+        )}
 
         {/* Search zone legend (host only) */}
         {isHost && (
@@ -499,8 +500,20 @@ const PredictionPlatform: React.FC = () => {
           </div>
         </div>
 
+        {/* ── Upgrade prompt for free viewers ────────────────────────────── */}
+        {isFreeViewer && (
+          <div className="sar-card hud-border p-6 text-center">
+            <Brain size={28} className="text-primary mx-auto mb-3" />
+            <p className="font-heading text-sm font-700 text-foreground mb-1">AI Prediction &amp; Live Aircraft Feed</p>
+            <p className="text-xs text-muted-foreground mb-3 max-w-sm mx-auto">
+              Subscribe to unlock AI crash prediction, live aircraft tracking, and danger assessment.
+            </p>
+            <div className="text-[11px] font-mono text-primary">anands9408@gmail.com · UPI: anands9408@oksbi</div>
+          </div>
+        )}
+
         {/* ── AI Prediction Engine ─────────────────────────────────────────── */}
-        <div className="sar-card hud-border overflow-hidden">
+        {!isFreeViewer && <div className="sar-card hud-border overflow-hidden">
           <button
             onClick={() => setShowAIPanel((v) => !v)}
             className="w-full px-4 py-3 border-b border-border flex items-center gap-2 hover:bg-secondary/20 transition-colors"
@@ -532,10 +545,10 @@ const PredictionPlatform: React.FC = () => {
               riskFactors={selectedDangerScore?.factors?.map((f) => ({ name: f.name, value: f.value, points: f.points }))}
             />
           )}
-        </div>
+        </div>}
 
-        {/* ── Danger Assessment ────────────────────────────────────────────── */}
-        <div className="sar-card hud-border overflow-hidden">
+        {/* ── Danger Assessment — hidden for free viewers ───────────────── */}
+        {!isFreeViewer && <div className="sar-card hud-border overflow-hidden">
           <button
             onClick={() => setShowDanger((v) => !v)}
             className="w-full px-4 py-3 border-b border-border flex items-center gap-2 hover:bg-secondary/20 transition-colors"
@@ -570,7 +583,7 @@ const PredictionPlatform: React.FC = () => {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Host-Only Panels ─────────────────────────────────────────────── */}
         {isHost && (

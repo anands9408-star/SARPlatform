@@ -1,12 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import sarLogo from "@/assets/sar-logo.png";
-import { Radio, Map, FileText, BookOpen, History, LogOut, User, Shield, Eye } from "lucide-react";
+import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe } from "lucide-react";
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const Header = () => {
-  const { user, logout, isHost, isAuthenticated } = useAuth();
+  const { user, logout, isHost, isAuthenticated, isFreeViewer } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -17,16 +17,20 @@ const Header = () => {
 
   // Nav items — filtered by role
   const allNavItems = [
-    { to: "/platform",  label: "PLATFORM",    icon: Map,      end: true,  requiresHost: false },
-    { to: "/mission",   label: "MISSION",      icon: Radio,    end: false, requiresHost: true  },
-    { to: "/history",   label: "HISTORY",      icon: History,  end: false, requiresHost: true  },
-    { to: "/docs",      label: "DOCS",         icon: BookOpen, end: false, requiresHost: false },
-    { to: "/license",   label: "LICENSE",      icon: FileText, end: false, requiresHost: false, public: true },
+    { to: "/platform",  label: "PLATFORM",    icon: Map,      end: true,  requiresHost: false, freeViewerOk: true },
+    { to: "/mission",   label: "MISSION",      icon: Radio,    end: false, requiresHost: true,  freeViewerOk: false },
+    { to: "/history",   label: "HISTORY",      icon: History,  end: false, requiresHost: true,  freeViewerOk: false },
+    { to: "/docs",      label: "DOCS",         icon: BookOpen, end: false, requiresHost: false, freeViewerOk: true  },
+    { to: "/license",   label: "LICENSE",      icon: FileText, end: false, requiresHost: false, freeViewerOk: true, public: true },
   ];
 
   // Show nav only when authenticated; always show license
   const navItems = isAuthenticated
-    ? allNavItems.filter((n) => !n.requiresHost || isHost)
+    ? allNavItems.filter((n) => {
+        if (n.requiresHost) return isHost;
+        if (isFreeViewer)   return (n as any).freeViewerOk;
+        return true;
+      })
     : allNavItems.filter((n) => (n as any).public);
 
   return (
@@ -95,12 +99,14 @@ const Header = () => {
               >
                 {isHost
                   ? <Shield size={11} className="text-danger" />
-                  : <Eye size={11} className="text-primary" />}
+                  : isFreeViewer
+                    ? <Globe size={11} className="text-success" />
+                    : <Eye size={11} className="text-primary" />}
                 <span className="font-mono text-[10px] text-foreground max-w-[120px] truncate">
                   {user.email.split("@")[0]}
                 </span>
-                <span className={`font-heading text-[8px] font-700 ${isHost ? "text-danger" : "text-primary"}`}>
-                  {isHost ? "HOST" : "VIEWER"}
+                <span className={`font-heading text-[8px] font-700 ${isHost ? "text-danger" : isFreeViewer ? "text-success" : "text-primary"}`}>
+                  {isHost ? "HOST" : isFreeViewer ? "FREE" : "VIEWER"}
                 </span>
               </div>
               <button
