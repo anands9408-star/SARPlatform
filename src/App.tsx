@@ -1,8 +1,11 @@
-import React, { Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import React, { Suspense, lazy, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
+import { toast } from "sonner";
 import Header from "@/components/layout/Header";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+import type { SARUser } from "@/hooks/useAuth";
 
 const PredictionPlatform = lazy(() => import("@/pages/PredictionPlatform"));
 const MissionInput        = lazy(() => import("@/pages/MissionInput"));
@@ -39,7 +42,64 @@ const NotFound = () => (
   </div>
 );
 
-// ── Auth-guarded route ─────────────────────────────────────────────────────
+// ── Google OAuth callback handler ─────────────────────────────────────────
+// Runs once after Google redirect, resolves role from email, sets SAR session
+
+const HOST_EMAIL = "anands9408@gmail.com";
+
+function GoogleOAuthHandler() {
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleOAuth = async () => {
+      // Only fire when there's a hash fragment (OAuth redirect) and not already logged in
+      if (!window.location.hash.includes("access_token") && !window.location.search.includes("code=")) return;
+      if (isAuthenticated) return;
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session?.user?.email) return;
+
+      const email = session.user.email.toLowerCase();
+
+      // Resolve role from email
+      let role: SARUser["role"] = "free_viewer";
+      if (email === HOST_EMAIL) {
+        role = "host";
+      } else {
+        // Check subscriber table
+        const { data: viewerData } = await supabase
+          .from("viewer_access")
+          .select("id")
+          .eq("subscriber_email", email)
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString())
+          .limit(1);
+        if (viewerData && viewerData.length > 0) role = "viewer";
+      }
+
+      const sarUser: SARUser = { email, role, loginAt: Date.now() };
+      login(sarUser);
+
+      const msgs: Record<string, string> = {
+        host: "Host access granted via Google — full platform unlocked.",
+        viewer: "Welcome! Subscriber access granted via Google.",
+        free_viewer: "Google sign-in complete — free view mode active.",
+      };
+      toast.success(msgs[role]);
+
+      // Sign out from Supabase auth (we use our own session)
+      await supabase.auth.signOut();
+      navigate("/platform", { replace: true });
+    };
+
+    handleOAuth();
+  }, []);
+
+  return null;
+}
+
+// ── Auth-guarded route ──────────────────────────────────────────────────────
 
 function ProtectedRoute({ children, hostOnly = false }: { children: React.ReactNode; hostOnly?: boolean }) {
   const { isAuthenticated, isHost } = useAuth();
@@ -61,6 +121,7 @@ const AppRoutes: React.FC = () => {
 
   return (
     <>
+      <GoogleOAuthHandler />
       <Header />
       <Suspense fallback={<Loader />}>
         <Routes>
