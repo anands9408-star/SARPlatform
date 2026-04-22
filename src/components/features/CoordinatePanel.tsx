@@ -8,47 +8,50 @@ interface CoordinatePanelProps {
   onLonChange: (v: number) => void;
   scanRadius?: number;
   onScanRadiusChange?: (v: number) => void;
+  /** Max radius allowed — subscribers capped at 500 km */
+  maxRadius?: number;
 }
 
 /** sentinel value that means "no bounding box — fetch globally" */
 export const GLOBAL_RADIUS = 0;
 
-/** Preset radius options including satellite-grade coverage tiers */
+/** Simplified preset radius options */
 const RADIUS_PRESETS = [
-  { label: "100", value: 100,  tier: "local"    },
-  { label: "200", value: 200,  tier: "local"    },
-  { label: "500", value: 500,  tier: "regional" },
-  { label: "750", value: 750,  tier: "regional" },
-  { label: "1K",  value: 1000, tier: "wide"     },
-  { label: "1.5K",value: 1500, tier: "wide"     },
-  { label: "2K",  value: 2000, tier: "max"      },
-  { label: "GLB", value: 0,    tier: "global"   },
+  { label: "500",  value: 500,  tier: "local"    },
+  { label: "1K",   value: 1000, tier: "wide"     },
+  { label: "2K",   value: 2000, tier: "max"      },
+  { label: "GLB",  value: 0,    tier: "global"   },
 ];
 
 const TIER_COLORS: Record<string, string> = {
-  local:    "hsl(var(--primary))",
-  regional: "hsl(var(--primary))",
-  wide:     "hsl(var(--warning))",
-  max:      "hsl(var(--warning))",
-  global:   "#f97316",
+  local:  "hsl(var(--primary))",
+  wide:   "hsl(var(--warning))",
+  max:    "hsl(var(--warning))",
+  global: "#f97316",
 };
 
 const CoordinatePanel: React.FC<CoordinatePanelProps> = ({
   lat, lon, onLatChange, onLonChange,
-  scanRadius = 1500,
+  scanRadius = 1000,
   onScanRadiusChange,
+  maxRadius,
 }) => {
   const isGlobal = scanRadius === GLOBAL_RADIUS;
-  const active = RADIUS_PRESETS.find((p) => p.value === scanRadius);
-  const tier = active?.tier ?? "wide";
+  const active   = RADIUS_PRESETS.find((p) => p.value === scanRadius);
+  const tier     = active?.tier ?? "wide";
 
   const coverageLabel = () => {
     if (isGlobal) return "Satellite ADS-B · Global Coverage · All aircraft worldwide";
-    if (scanRadius <= 200)  return "Local vicinity — ground ADS-B";
     if (scanRadius <= 500)  return "Regional coverage — ground + satellite ADS-B";
-    if (scanRadius <= 1000) return "Extended area — optimal ground ADS-B";
-    if (scanRadius <= 1500) return "Wide-area — satellite ADS-B augmentation";
+    if (scanRadius <= 1000) return "Wide-area — satellite ADS-B augmentation";
     return "Max range — satellite ADS-B primary · rate limits likely";
+  };
+
+  const handlePresetClick = (value: number) => {
+    if (!onScanRadiusChange) return;
+    // Enforce subscriber max radius
+    if (maxRadius !== undefined && value !== 0 && value > maxRadius) return;
+    onScanRadiusChange(value);
   };
 
   return (
@@ -88,6 +91,9 @@ const CoordinatePanel: React.FC<CoordinatePanelProps> = ({
             <div className="flex items-center gap-1.5">
               <ScanLine size={12} className="text-primary" />
               <label className="label-tag text-[9px]">ADS-B SCAN RADIUS</label>
+              {maxRadius !== undefined && (
+                <span className="label-tag text-[8px] text-warning">max {maxRadius} km</span>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               {isGlobal ? (
@@ -102,44 +108,38 @@ const CoordinatePanel: React.FC<CoordinatePanelProps> = ({
             </div>
           </div>
 
-          {/* Preset radius buttons — all 8 options */}
-          <div className="grid grid-cols-8 gap-1">
+          {/* Preset buttons */}
+          <div className="grid grid-cols-4 gap-1.5">
             {RADIUS_PRESETS.map((p) => {
               const isActive = scanRadius === p.value;
               const isGlb = p.value === 0;
+              const isLocked = maxRadius !== undefined && p.value !== 0 && p.value > maxRadius;
               return (
                 <button
                   key={p.value}
-                  onClick={() => onScanRadiusChange(p.value)}
-                  className={`py-1.5 rounded font-mono text-[9px] font-700 border transition-all ${
-                    isActive
-                      ? isGlb
-                        ? "bg-orange-400/15 border-orange-400/60 text-orange-400"
-                        : p.tier === "wide" || p.tier === "max"
-                          ? "bg-warning/15 border-warning/60 text-warning"
-                          : "bg-primary/15 border-primary/60 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  onClick={() => handlePresetClick(p.value)}
+                  disabled={isLocked}
+                  className={`py-2 rounded font-mono text-[10px] font-700 border transition-all ${
+                    isLocked
+                      ? "border-border text-muted-foreground/40 cursor-not-allowed opacity-40"
+                      : isActive
+                        ? isGlb
+                          ? "bg-orange-400/15 border-orange-400/60 text-orange-400"
+                          : p.tier === "wide" || p.tier === "max"
+                            ? "bg-warning/15 border-warning/60 text-warning"
+                            : "bg-primary/15 border-primary/60 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                   }`}
-                  title={isGlb ? "Global ADS-B (satellite)" : `${p.value} km radius`}
+                  title={
+                    isLocked ? `Restricted — upgrade for ${p.label}` :
+                    isGlb ? "Global ADS-B (satellite)" : `${p.value} km radius`
+                  }
                 >
-                  {isGlb ? <Globe size={9} className="mx-auto" /> : p.label}
+                  {isGlb ? <Globe size={10} className="mx-auto" /> : p.label}
                 </button>
               );
             })}
           </div>
-
-          {/* Slider (hidden for global) */}
-          {!isGlobal && (
-            <input
-              type="range"
-              min={100}
-              max={2000}
-              step={50}
-              value={scanRadius}
-              onChange={(e) => onScanRadiusChange(parseInt(e.target.value))}
-              className="w-full accent-primary"
-            />
-          )}
 
           {/* Coverage indicator */}
           <div

@@ -1,13 +1,17 @@
 User-agent: *
 Allow: /
+Allow: /login
+Allow: /license
+Allow: /docs
 
-# Block sensitive paths
+# Block backend and API routes
 Disallow: /api/
 Disallow: /.env
 Disallow: /supabase/
+Disallow: /src/
 
-# Sitemap
+# Sitemap location
 Sitemap: https://sar-platform.onspace.app/sitemap.xml
 
-# Crawl-delay for bots
-Crawl-delay: 10
+# Crawl delay to be polite to bots
+Crawl-delay: 5
