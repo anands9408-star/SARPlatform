@@ -116,11 +116,15 @@ const LoginPage: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    // Use the exact current origin so the redirect URI matches Google Console
+    const redirectTo = `${window.location.origin}/platform`;
+    console.log("[Google OAuth] redirectTo:", redirectTo);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin + "/platform",
-        queryParams: { access_type: "offline", prompt: "consent" },
+        redirectTo,
+        queryParams: { access_type: "offline", prompt: "select_account" },
+        skipBrowserRedirect: false,
       },
     });
     if (error) {

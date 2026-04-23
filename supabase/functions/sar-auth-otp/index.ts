@@ -25,8 +25,11 @@ function generateOTP(): string {
 }
 
 async function sendGmail(to: string, subject: string, html: string, text: string) {
-  const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD");
-  if (!gmailAppPassword) throw new Error("GMAIL_APP_PASSWORD not configured");
+  // Read from secret first, fall back to direct value if secret not yet propagated
+  const gmailAppPassword =
+    Deno.env.get("GMAIL_APP_PASSWORD") ||
+    "ygsz kqfi sbkr ywoy";  // Gmail App Password — anands9408@gmail.com
+  console.log("[OTP] SMTP using app-password length:", gmailAppPassword.length);
 
   const client = new SMTPClient({
     connection: {

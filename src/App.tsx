@@ -53,21 +53,35 @@ function GoogleOAuthHandler() {
 
   useEffect(() => {
     const handleOAuth = async () => {
-      // Only fire when there's a hash fragment (OAuth redirect) and not already logged in
-      if (!window.location.hash.includes("access_token") && !window.location.search.includes("code=")) return;
+      const hasHash = window.location.hash.includes("access_token");
+      const hasCode = window.location.search.includes("code=");
+      if (!hasHash && !hasCode) return;
       if (isAuthenticated) return;
 
+      console.log("[Google OAuth] Callback detected — resolving session…");
+
+      // Give Supabase a moment to exchange the code for a session (PKCE)
+      await new Promise((r) => setTimeout(r, 800));
+
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.user?.email) return;
+      if (error) { console.error("[Google OAuth] getSession error:", error.message); return; }
+      if (!session?.user?.email) {
+        console.warn("[Google OAuth] No session/email found after callback");
+        // Clean up URL params and redirect to login
+        window.history.replaceState({}, document.title, "/login");
+        toast.error("Google sign-in failed — please try again.");
+        navigate("/login", { replace: true });
+        return;
+      }
 
       const email = session.user.email.toLowerCase();
+      console.log("[Google OAuth] Signed in as:", email);
 
-      // Resolve role from email
+      // Resolve SAR role from email
       let role: SARUser["role"] = "free_viewer";
       if (email === HOST_EMAIL) {
         role = "host";
       } else {
-        // Check subscriber table
         const { data: viewerData } = await supabase
           .from("viewer_access")
           .select("id")
@@ -82,19 +96,22 @@ function GoogleOAuthHandler() {
       login(sarUser);
 
       const msgs: Record<string, string> = {
-        host: "Host access granted via Google — full platform unlocked.",
-        viewer: "Welcome! Subscriber access granted via Google.",
+        host:        "Host access granted via Google — full platform unlocked.",
+        viewer:      "Welcome! Subscriber access granted via Google.",
         free_viewer: "Google sign-in complete — free view mode active.",
       };
       toast.success(msgs[role]);
 
-      // Sign out from Supabase auth (we use our own session)
+      // Sign out from Supabase OAuth session (SAR uses its own sessionStorage session)
       await supabase.auth.signOut();
+
+      // Clean URL then navigate
+      window.history.replaceState({}, document.title, "/platform");
       navigate("/platform", { replace: true });
     };
 
     handleOAuth();
-  }, []);
+  }, [isAuthenticated]);
 
   return null;
 }
