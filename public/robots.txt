@@ -4,14 +4,18 @@ Allow: /login
 Allow: /license
 Allow: /docs
 
-# Block backend and API routes
+# Block private/backend routes
 Disallow: /api/
 Disallow: /.env
 Disallow: /supabase/
 Disallow: /src/
+Disallow: /platform
+Disallow: /mission
+Disallow: /history
+Disallow: /survivor
 
-# Sitemap location
+# Sitemap
 Sitemap: https://sar-platform.onspace.app/sitemap.xml
 
-# Crawl delay to be polite to bots
-Crawl-delay: 5
+# Crawl delay
+Crawl-delay: 3
