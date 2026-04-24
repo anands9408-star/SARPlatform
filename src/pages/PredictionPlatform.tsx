@@ -19,6 +19,7 @@ import WeatherPanel from "@/components/features/WeatherPanel";
 import AIPredictionPanel from "@/components/features/AIPredictionPanel";
 import CommSatellitePanel from "@/components/features/CommSatellitePanel";
 import ViewerAccessManager from "@/components/features/ViewerAccessManager";
+import VideoFeedPanel from "@/components/features/VideoFeedPanel";
 import { useAircraft } from "@/hooks/useAircraft";
 import { useAuth } from "@/hooks/useAuth";
 import { KMH_TO_MS } from "@/lib/physics";
@@ -29,17 +30,18 @@ import { SEARCH_ZONES } from "@/constants/sar";
 import {
   Radio, Wifi, WifiOff, RefreshCw,
   Plane, Activity, ChevronDown, ChevronUp, MapPin, Globe,
-  Database, X, ShieldAlert, Brain, Satellite, Shield, Eye,
+  Database, X, ShieldAlert, Brain, Satellite, Shield, Eye, Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { sendSARAlert } from "@/lib/notifications";
 import type { NotifyAircraft } from "@/lib/notifications";
 import type { DangerScore } from "@/types";
 
-const DEFAULT_RADIUS_KM    = 1000;
-const SUBSCRIBER_MAX_RADIUS = 500;
-const REFRESH_INTERVAL_MS  = 25_000;
-const WEATHER_REFRESH_MS   = 7 * 60 * 1000;
+const DEFAULT_RADIUS_KM     = 1000;
+const SUBSCRIBER_MAX_RADIUS = 1000; // Upgraded: subscribers now get 1K scan
+const REFRESH_INTERVAL_MS   = 25_000;
+const WEATHER_REFRESH_MS    = 7 * 60 * 1000;
+const CRASH_MONITOR_MS      = 90_000;
 
 const RETENTION_OPTIONS = [
   { label: "6 h",  value: 6   },
@@ -93,7 +95,8 @@ const PredictionPlatform: React.FC = () => {
   const weatherMapRef         = useRef<Map<string, WeatherData>>(new Map());
 
   // ── Collapse states ───────────────────────────────────────────────────
-  const [showDanger, setShowDanger] = useState(true);
+  const [showDanger,    setShowDanger]    = useState(true);
+  const [showVideoFeed, setShowVideoFeed] = useState(true);
 
   // ── Retention (host only) ─────────────────────────────────────────────
   const [retentionHours, setRetentionHoursState] = useState(getRetentionHours);
@@ -213,6 +216,32 @@ const PredictionPlatform: React.FC = () => {
     setTestAlertLoading(false);
   };
 
+  // ── Crash monitor — polls edge fn every 90s even when offline ──────
+  useEffect(() => {
+    if (!isHost) return;
+    const runCrashCheck = async () => {
+      try {
+        const { supabase: sb } = await import("@/lib/supabase");
+        await sb.functions.invoke("sar-crash-monitor", {
+          body: { lat, lon, radiusKm: isGlobal ? 5000 : Math.max(scanRadius, 2000) },
+        });
+        console.log("[CrashMonitor] Periodic check complete");
+      } catch (e) {
+        console.warn("[CrashMonitor] Check failed:", e);
+      }
+    };
+    runCrashCheck();
+    const iv = setInterval(runCrashCheck, CRASH_MONITOR_MS);
+    return () => clearInterval(iv);
+  }, [isHost, lat, lon, scanRadius, isGlobal]);
+
+  // ── Store host email for reference ─────────────────────────────────
+  useEffect(() => {
+    if (isHost && user?.email) {
+      localStorage.setItem("sar_host_alert_email", user.email);
+    }
+  }, [isHost, user?.email]);
+
   const handleAircraftClick = useCallback((ac: LiveAircraft) => {
     setSelectedAircraft(ac);
     setTimeSinceLKP(0);
@@ -260,7 +289,7 @@ const PredictionPlatform: React.FC = () => {
         <div className="px-4 py-1.5 flex items-center gap-2 border-b border-primary/20 text-[10px] font-mono"
           style={{ background: "hsl(var(--primary) / 0.05)" }}>
           <Eye size={10} className="text-primary shrink-0" />
-          <span className="text-primary">Subscriber — AI Prediction, Danger Assessment &amp; Weather active · Scan radius capped at {SUBSCRIBER_MAX_RADIUS} km</span>
+          <span className="text-primary">Subscriber — AI Prediction, Danger Assessment, Weather, Video Feed &amp; Kinematic Simulation · Scan up to {SUBSCRIBER_MAX_RADIUS} km</span>
         </div>
       )}
       {isFreeViewer && (
@@ -499,6 +528,9 @@ const PredictionPlatform: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* ── Mission Control Video Feed ─────────────────────────────────── */}
+        <VideoFeedPanel selectedAircraft={selectedAircraft} weather={weather} />
 
         {/* ── Upgrade prompt for free viewers ────────────────────────────── */}
         {isFreeViewer && (

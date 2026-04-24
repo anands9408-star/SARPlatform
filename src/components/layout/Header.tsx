@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import sarLogo from "@/assets/sar-logo.png";
-import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe, Info } from "lucide-react";
+import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe, Info, Rocket } from "lucide-react";
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ const Header = () => {
     { to: "/mission",   label: "MISSION",      icon: Radio,    end: false, requiresHost: true,  freeViewerOk: false },
     { to: "/history",   label: "HISTORY",      icon: History,  end: false, requiresHost: true,  freeViewerOk: false },
     { to: "/about",     label: "ABOUT",        icon: Info,     end: false, requiresHost: false, freeViewerOk: true, public: true },
+    { to: "/launch",    label: "LAUNCH",       icon: Rocket,   end: false, requiresHost: false, freeViewerOk: true, public: true },
     { to: "/docs",      label: "DOCS",         icon: BookOpen, end: false, requiresHost: false, freeViewerOk: true  },
     { to: "/license",   label: "LICENSE",      icon: FileText, end: false, requiresHost: false, freeViewerOk: true, public: true },
   ];

@@ -15,6 +15,7 @@ const Documentation       = lazy(() => import("@/pages/Documentation"));
 const HistoryDashboard    = lazy(() => import("@/pages/HistoryDashboard"));
 const LoginPage           = lazy(() => import("@/pages/LoginPage"));
 const AboutPage           = lazy(() => import("@/pages/AboutPage"));
+const LaunchPage          = lazy(() => import("@/pages/LaunchPage"));
 
 const Loader = () => (
   <div className="flex items-center justify-center min-h-screen" style={{ background: "hsl(var(--background))" }}>
@@ -149,6 +150,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/license" element={<License />} />
           <Route path="/docs"    element={<Documentation />} />
           <Route path="/about"   element={<AboutPage />} />
+          <Route path="/launch"  element={<LaunchPage />} />
 
           {/* Protected pages — require auth */}
           <Route path="/platform" element={

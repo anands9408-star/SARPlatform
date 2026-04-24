@@ -9,8 +9,11 @@ import { Link } from "react-router-dom";
 import {
   Plane, Brain, Activity, CloudLightning, Satellite,
   Globe, Shield, Eye, Zap, Mail, CheckCircle2,
-  ChevronDown, ChevronUp, Radio, MapPin, Database, Star,
+  ChevronDown, ChevronUp, Radio, MapPin, Database, Star, Video, Play,
 } from "lucide-react";
+import trackingImg from "@/assets/screenshot-tracking.jpg";
+import aiImg from "@/assets/screenshot-ai.jpg";
+import dangerImg from "@/assets/screenshot-danger.jpg";
 
 const FAQ_ITEMS = [
   {
@@ -394,6 +397,85 @@ const AboutPage: React.FC = () => {
               {FAQ_ITEMS.map((item) => (
                 <FAQItem key={item.q} q={item.q} a={item.a} />
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── See It In Action ──────────────────────────────────────────────── */}
+      <section className="py-20 px-6 lg:px-16">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="font-heading text-3xl lg:text-4xl font-700 text-foreground mb-4">See It In Action</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">Real screens from the live SAR Platform dashboard — built for mission operators.</p>
+          </div>
+
+          <div className="space-y-16">
+            {[
+              {
+                img: trackingImg,
+                title: "Real-Time ADS-B Aircraft Tracking Map",
+                tag: "Live Tracking",
+                color: "#60a5fa",
+                desc: "The interactive Leaflet map shows live aircraft positions from OpenSky Network, updated every 25 seconds. Risk-colored aircraft icons (CRITICAL in red, HIGH in orange, WATCH in yellow) give instant situational awareness. Scan radius is adjustable from 500 km to global coverage.",
+                side: "right",
+              },
+              {
+                img: aiImg,
+                title: "AI Tactical Crash Prediction Report",
+                tag: "AI Powered",
+                color: "#a855f7",
+                desc: "Click any tracked aircraft to generate a full AI prediction report via Google Gemini 3 Flash. The report fuses real-time telemetry, physics engine output (kinematics, wind drift, glide ratio), and live weather to estimate crash probability, predicted impact zone, and recommended SAR search radius.",
+                side: "left",
+              },
+              {
+                img: dangerImg,
+                title: "Automated Danger Assessment Panel",
+                tag: "Risk Scoring",
+                color: "#ef4444",
+                desc: "Every tracked aircraft is scored in real time across altitude, descent rate, speed near stall, and adverse weather. CRITICAL and HIGH-risk aircraft automatically trigger Gmail alerts to the mission operator with GPS coordinates and full risk breakdown — works whether host is online or offline.",
+                side: "right",
+              },
+            ].map((sc) => (
+              <div key={sc.title} className={`flex flex-col ${sc.side === "left" ? "lg:flex-row-reverse" : "lg:flex-row"} gap-8 items-center`}>
+                <div className="lg:w-3/5 relative">
+                  <div className="absolute -inset-3 rounded-2xl opacity-20" style={{ background: `radial-gradient(ellipse, ${sc.color}, transparent 70%)` }} />
+                  <img src={sc.img} alt={sc.title} className="relative z-10 w-full rounded-xl object-cover shadow-2xl"
+                    style={{ border: `1px solid ${sc.color}40`, boxShadow: `0 0 60px ${sc.color}15` }} />
+                </div>
+                <div className="lg:w-2/5 space-y-4">
+                  <div className="inline-block px-3 py-1 rounded-full text-[10px] font-heading font-700 tracking-widest"
+                    style={{ background: `${sc.color}15`, color: sc.color, border: `1px solid ${sc.color}40` }}>
+                    {sc.tag}
+                  </div>
+                  <h3 className="font-heading text-xl font-700 text-foreground">{sc.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{sc.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* YouTube embed placeholder */}
+          <div className="mt-16 rounded-xl overflow-hidden" style={{ border: "1px solid hsl(var(--primary) / 0.3)", background: "hsl(220 40% 5%)" }}>
+            <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "hsl(var(--primary) / 0.2)" }}>
+              <Video size={14} className="text-primary" />
+              <span className="font-heading text-xs font-700 tracking-widest text-foreground">DEMO VIDEO</span>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-4 py-16">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "hsl(var(--primary) / 0.15)", border: "1px solid hsl(var(--primary) / 0.4)" }}>
+                <Play size={28} className="text-primary ml-1" />
+              </div>
+              <div className="text-center">
+                <p className="font-heading text-sm font-700 tracking-widest text-foreground mb-2">PLATFORM WALKTHROUGH</p>
+                <p className="font-mono text-[10px] text-muted-foreground max-w-xs">
+                  Full 2-minute demo — aircraft tracking, AI report generation, ELT triangulation, and danger assessment in action.
+                </p>
+              </div>
+              <a href="https://www.youtube.com/@SARPlatform" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded font-heading text-xs font-700 tracking-widest"
+                style={{ background: "hsl(var(--primary) / 0.1)", border: "1px solid hsl(var(--primary) / 0.3)", color: "hsl(var(--primary))" }}>
+                <Play size={11} /> WATCH ON YOUTUBE
+              </a>
             </div>
           </div>
         </div>
