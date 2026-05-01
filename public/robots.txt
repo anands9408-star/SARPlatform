@@ -1,8 +1,10 @@
 User-agent: *
 Allow: /
+Allow: /about
 Allow: /login
-Allow: /license
 Allow: /docs
+Allow: /launch
+Allow: /license
 
 # Block private/backend routes
 Disallow: /api/
@@ -15,7 +17,7 @@ Disallow: /history
 Disallow: /survivor
 
 # Sitemap
-Sitemap: https://sar-platform.onspace.app/sitemap.xml
+Sitemap: https://react-9b5gkx.onspace.build/sitemap.xml
 
 # Crawl delay
-Crawl-delay: 3
+Crawl-delay: 2
