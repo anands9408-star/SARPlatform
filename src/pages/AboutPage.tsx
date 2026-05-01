@@ -26,7 +26,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What AI technology powers the predictions?",
-    a: "We use Google Gemini 3 Flash (via OnSpace AI) to generate tactical SAR prediction reports. The AI analyses real-time telemetry, physics calculations (kinematics, vector math, wind drift), and weather data to determine crash risk, probable impact zone, and recommended search sectors.",
+    a: "We use Google Gemini 3 Flash to generate tactical SAR prediction reports. The AI analyses real-time telemetry, physics calculations (kinematics, vector math, wind drift), and weather data to determine crash risk, probable impact zone, and recommended search sectors.",
   },
   {
     q: "What is ELT triangulation?",

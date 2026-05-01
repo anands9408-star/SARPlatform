@@ -208,7 +208,7 @@ const AIPredictionPanel: React.FC<AIPredictionPanelProps> = ({
             <Satellite size={28} className="text-muted-foreground mb-3" />
             <p className="text-xs text-muted-foreground font-mono leading-relaxed max-w-xs">
               Select an aircraft from the live feed, then click <strong className="text-primary">GENERATE</strong> to
-              run the OnSpace AI prediction engine for tactical SAR guidance.
+              run the AI prediction engine for tactical SAR guidance.
             </p>
           </div>
         )}

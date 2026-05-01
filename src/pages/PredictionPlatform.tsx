@@ -553,7 +553,7 @@ const PredictionPlatform: React.FC = () => {
           >
             <Brain size={14} className="text-primary" />
             <span className="font-heading text-sm font-700 tracking-widest">AI PREDICTION ENGINE</span>
-            <span className="label-tag text-primary ml-1 text-[9px]">OnSpace AI · Gemini 3 Flash</span>
+            <span className="label-tag text-primary ml-1 text-[9px]">Google Gemini 3 Flash</span>
             {selectedAircraft && (
               <span className="label-tag text-primary ml-2">Ready: {selectedAircraft.callsign}</span>
             )}
