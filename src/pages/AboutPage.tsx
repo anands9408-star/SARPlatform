@@ -481,6 +481,142 @@ const AboutPage: React.FC = () => {
         </div>
       </section>
 
+      {/* ── Indian Aviation Context ─────────────────────────────────────── */}
+      <section className="py-20 px-6 lg:px-16" style={{ background: "hsl(var(--background))", borderTop: "1px solid hsl(var(--border))" }}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="font-heading text-3xl lg:text-4xl font-700 text-foreground mb-4">India's Aviation SAR Landscape</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              India operates one of Asia's fastest-growing civil aviation sectors — with over 700 aircraft and 140+ airports regulated by
+              DGCA and managed by AAI. SAR Platform is specifically calibrated for Indian aviation routes, weather patterns, and the
+              Cospas-Sarsat ELT monitoring infrastructure operated by ISRO.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+            {/* Left — regulatory context */}
+            <div className="space-y-4">
+              <h3 className="font-heading text-xl font-700 text-foreground">Regulatory Framework</h3>
+              {[
+                {
+                  agency: "DGCA — Directorate General of Civil Aviation",
+                  color: "#60a5fa",
+                  desc: "Primary regulator for Indian civil aviation under the Aircraft Act, 1934. Mandates ADS-B Out equipment on aircraft above FL290 (CAR Section 2 Part II). Issues airworthiness certificates, pilot licenses, and airline operating permits.",
+                },
+                {
+                  agency: "AAI — Airports Authority of India",
+                  color: "#22c55e",
+                  desc: "Manages 137 airports and operates 4 Area Control Centres (ACCs) at Delhi, Mumbai, Chennai, and Kolkata — each responsible for a Flight Information Region (FIR). Coordinates with RCC on MAYDAY and PAN-PAN declarations.",
+                },
+                {
+                  agency: "ISRO SAC — Cospas-Sarsat INMCC",
+                  color: "#a855f7",
+                  desc: "ISRO's Space Applications Centre operates the Indian Mission Control Centre (INMCC) at Lucknow and a Local User Terminal (LUT) in Bangalore — processing 406 MHz ELT distress signals and forwarding to the Rescue Co-ordination Centre.",
+                },
+                {
+                  agency: "Indian Coast Guard — RCC",
+                  color: "#ef4444",
+                  desc: "Operates Rescue Co-ordination Centres at New Delhi, Mumbai, and Chennai under ICAO Annex 12. Coordinates SAR response for both maritime and aeronautical emergencies. Emergency line: 1800-180-3943.",
+                },
+              ].map((a) => (
+                <div key={a.agency} className="p-4 rounded-xl"
+                  style={{ background: "hsl(var(--surface))", border: `1px solid ${a.color}30` }}>
+                  <div className="font-heading text-xs font-700 tracking-widest mb-2" style={{ color: a.color }}>{a.agency}</div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{a.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Right — Indian routes + operational context */}
+            <div className="space-y-4">
+              <h3 className="font-heading text-xl font-700 text-foreground">Why SAR Platform for India</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                India's diverse terrain creates unique challenges for aviation safety and SAR operations. The Western Ghats, Himalayan
+                foothills, and Bay of Bengal approaches all present areas where ADS-B coverage can be reduced — meaning aircraft can
+                disappear from tracking for minutes before an incident is detected. SAR Platform's LKP (Last Known Position) prediction
+                engine was specifically designed for these coverage-gap scenarios.
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                The monsoon season (June–September) brings thunderstorms, wind shear, and low visibility conditions across major
+                Indian routes. SAR Platform integrates Open-Meteo weather data with WMO code 95–99 (thunderstorm) detection and
+                automatically elevates aircraft danger scores during adverse weather — critical for spotting high-risk flights
+                during India's monsoon months.
+              </p>
+
+              <div className="p-4 rounded-xl" style={{ background: "hsl(var(--surface))", border: "1px solid hsl(var(--border))" }}>
+                <div className="font-heading text-xs font-700 tracking-widest text-primary mb-3">HIGH-COVERAGE INDIAN AIRPORTS</div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs font-mono text-muted-foreground">
+                  {[
+                    ["DEL", "Indira Gandhi Intl, Delhi"],
+                    ["BOM", "Chhatrapati Shivaji, Mumbai"],
+                    ["BLR", "Kempegowda Intl, Bangalore"],
+                    ["MAA", "Chennai Intl Airport"],
+                    ["HYD", "Rajiv Gandhi Intl, Hyderabad"],
+                    ["CCU", "Netaji Subhash Chandra, Kolkata"],
+                    ["COK", "Cochin International Airport"],
+                    ["AMD", "Sardar Vallabhbhai, Ahmedabad"],
+                    ["GOX", "Goa International Airport"],
+                    ["TRV", "Trivandrum International"],
+                  ].map(([code, name]) => (
+                    <div key={code} className="flex items-center gap-2">
+                      <span className="text-primary font-700">{code}</span>
+                      <span>{name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl" style={{ background: "hsl(var(--surface))", border: "1px solid hsl(var(--border))" }}>
+                <div className="font-heading text-xs font-700 tracking-widest text-warning mb-2">IMPORTANT DISCLAIMER</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  SAR Platform is a research-grade prototype using public APIs. It is NOT certified by DGCA, AAI, or any aviation
+                  authority. All outputs are for situational awareness and research only. In any real aviation emergency in India,
+                  contact the Indian Coast Guard (1800-180-3943) or dial 112 immediately.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Indian accident history context */}
+          <div className="p-6 rounded-xl" style={{ background: "hsl(var(--surface))", border: "1px solid hsl(var(--border))" }}>
+            <h3 className="font-heading text-lg font-700 text-foreground mb-4">Learning from Indian Aviation History</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+              SAR Platform's danger assessment algorithm is informed by historical Indian aviation incidents — calibrating risk thresholds
+              against real accident data to improve detection sensitivity for the most critical scenarios.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                {
+                  incident: "Air India Express IX-812",
+                  year: "2010 · Mangalore",
+                  color: "#ef4444",
+                  lesson: "Overrun off tabletop runway. Risk factors: excessive speed on final, unstabilised approach, high vertical descent rate. Platform danger score would flag CRITICAL.",
+                },
+                {
+                  incident: "Indian Airlines IC-440",
+                  year: "1991 · Imphal",
+                  color: "#f97316",
+                  lesson: "CFIT in fog at 2,300 ft in mountainous terrain. Risk factors: low visibility, low altitude, signal loss in hilly area. Platform LKP engine would maintain prediction through signal gap.",
+                },
+                {
+                  incident: "Alliance Air CD-7412",
+                  year: "2000 · Patna",
+                  color: "#eab308",
+                  lesson: "Runway overrun after improper touchdown. Risk factors: high descent rate on short final, speed near stall. AI prediction would generate CRITICAL report on approach.",
+                },
+              ].map((item) => (
+                <div key={item.incident} className="p-4 rounded-lg"
+                  style={{ background: "hsl(var(--muted))", border: `1px solid ${item.color}30` }}>
+                  <div className="font-heading text-xs font-700" style={{ color: item.color }}>{item.incident}</div>
+                  <div className="text-[10px] text-muted-foreground font-mono mb-2">{item.year}</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.lesson}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA ──────────────────────────────────────────────────────────── */}
       <section className="py-20 px-6 text-center" style={{ background: "hsl(var(--muted))", borderTop: "1px solid hsl(var(--border))" }}>
         <div className="max-w-2xl mx-auto">

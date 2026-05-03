@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import sarLogo from "@/assets/sar-logo.png";
-import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe, Info, Rocket } from "lucide-react";
+import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe, Info, Rocket, LogIn } from "lucide-react";
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -15,25 +15,28 @@ const Header = () => {
     navigate("/login");
   };
 
-  // Nav items — filtered by role
-  const allNavItems = [
-    { to: "/platform",  label: "PLATFORM",    icon: Map,      end: true,  requiresHost: false, freeViewerOk: true },
-    { to: "/mission",   label: "MISSION",      icon: Radio,    end: false, requiresHost: true,  freeViewerOk: false },
-    { to: "/history",   label: "HISTORY",      icon: History,  end: false, requiresHost: true,  freeViewerOk: false },
-    { to: "/about",     label: "ABOUT",        icon: Info,     end: false, requiresHost: false, freeViewerOk: true, public: true },
-    { to: "/launch",    label: "LAUNCH",       icon: Rocket,   end: false, requiresHost: false, freeViewerOk: true, public: true },
-    { to: "/docs",      label: "DOCS",         icon: BookOpen, end: false, requiresHost: false, freeViewerOk: true  },
-    { to: "/license",   label: "LICENSE",      icon: FileText, end: false, requiresHost: false, freeViewerOk: true, public: true },
+  // ── Public links — always shown on the LEFT ────────────────────────────
+  const publicLinks = [
+    { to: "/about",   label: "ABOUT",   icon: Info,     end: false },
+    { to: "/launch",  label: "LAUNCH",  icon: Rocket,   end: false },
+    { to: "/docs",    label: "DOCS",    icon: BookOpen, end: false },
+    { to: "/license", label: "LICENSE", icon: FileText, end: false },
   ];
 
-  // Show nav only when authenticated; always show license
-  const navItems = isAuthenticated
-    ? allNavItems.filter((n) => {
+  // ── Authenticated app links — shown in the middle after logo ──────────
+  const appNavItems = [
+    { to: "/platform", label: "PLATFORM", icon: Map,     end: true,  requiresHost: false, freeViewerOk: true  },
+    { to: "/mission",  label: "MISSION",  icon: Radio,   end: false, requiresHost: true,  freeViewerOk: false },
+    { to: "/history",  label: "HISTORY",  icon: History, end: false, requiresHost: true,  freeViewerOk: false },
+  ];
+
+  const filteredAppItems = isAuthenticated
+    ? appNavItems.filter((n) => {
         if (n.requiresHost) return isHost;
-        if (isFreeViewer)   return (n as any).freeViewerOk;
+        if (isFreeViewer)   return n.freeViewerOk;
         return true;
       })
-    : allNavItems.filter((n) => (n as any).public);
+    : [];
 
   return (
     <header
@@ -44,48 +47,85 @@ const Header = () => {
         backdropFilter: "blur(8px)",
       }}
     >
-      <div className="flex items-center h-full px-4 gap-3">
-        {/* Logo */}
-        <NavLink to={isAuthenticated ? "/platform" : "/login"} className="flex items-center gap-2.5 shrink-0">
-          <img src={sarLogo} alt="SAR Logo" className="w-8 h-8 object-contain" />
-          <div>
-            <div className="font-heading text-lg font-bold text-primary leading-none tracking-widest">SAR</div>
-            <div className="label-tag text-[8px]">Search Aircraft Rescue</div>
-          </div>
-        </NavLink>
+      <div className="flex items-center h-full px-4 gap-2">
 
-        <div className="w-px h-8 shrink-0" style={{ background: "hsl(var(--border))" }} />
-
-        {/* Nav */}
-        <nav className="flex items-center gap-1 overflow-x-auto flex-1">
-          {navItems.map((item) => (
+        {/* ── LEFT: Public navigation ────────────────────────────────── */}
+        <nav className="flex items-center gap-0.5 shrink-0">
+          {publicLinks.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `flex items-center gap-1.5 px-3 py-2 rounded font-heading text-xs font-600 tracking-wide transition-all whitespace-nowrap ${
+                `flex items-center gap-1.5 px-2.5 py-1.5 rounded font-heading text-[11px] font-600 tracking-wide transition-all whitespace-nowrap ${
                   isActive
                     ? "bg-primary/10 text-primary border border-primary/30"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                 }`
               }
             >
-              <item.icon size={12} />
+              <item.icon size={11} />
               {item.label}
             </NavLink>
           ))}
           {!isAuthenticated && (
             <NavLink
               to="/login"
-              className="flex items-center gap-1.5 px-3 py-2 rounded font-heading text-xs font-700 tracking-wide transition-all whitespace-nowrap border border-primary/40 text-primary hover:bg-primary/10 ml-2"
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 px-2.5 py-1.5 rounded font-heading text-[11px] font-700 tracking-wide transition-all whitespace-nowrap border ${
+                  isActive
+                    ? "bg-primary/10 text-primary border-primary/30"
+                    : "border-primary/40 text-primary hover:bg-primary/10"
+                }`
+              }
             >
+              <LogIn size={11} />
               LOGIN
             </NavLink>
           )}
         </nav>
 
-        {/* User info + auth status */}
+        <div className="w-px h-8 shrink-0" style={{ background: "hsl(var(--border))" }} />
+
+        {/* ── CENTER: Logo ────────────────────────────────────────────── */}
+        <NavLink to={isAuthenticated ? "/platform" : "/login"} className="flex items-center gap-2 shrink-0">
+          <img src={sarLogo} alt="SAR Logo" className="w-7 h-7 object-contain" />
+          <div>
+            <div className="font-heading text-base font-bold text-primary leading-none tracking-widest">SAR</div>
+            <div className="label-tag text-[8px]">Search Aircraft Rescue</div>
+          </div>
+        </NavLink>
+
+        {/* ── App nav (platform / mission / history) ──────────────────── */}
+        {filteredAppItems.length > 0 && (
+          <>
+            <div className="w-px h-8 shrink-0" style={{ background: "hsl(var(--border))" }} />
+            <nav className="flex items-center gap-0.5">
+              {filteredAppItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `flex items-center gap-1.5 px-2.5 py-1.5 rounded font-heading text-[11px] font-600 tracking-wide transition-all whitespace-nowrap ${
+                      isActive
+                        ? "bg-primary/10 text-primary border border-primary/30"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`
+                  }
+                >
+                  <item.icon size={11} />
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </>
+        )}
+
+        {/* ── Spacer ──────────────────────────────────────────────────── */}
+        <div className="flex-1" />
+
+        {/* ── RIGHT: Status + user + logout ───────────────────────────── */}
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
@@ -104,7 +144,7 @@ const Header = () => {
                   : isFreeViewer
                     ? <Globe size={11} className="text-success" />
                     : <Eye size={11} className="text-primary" />}
-                <span className="font-mono text-[10px] text-foreground max-w-[120px] truncate">
+                <span className="font-mono text-[10px] text-foreground max-w-[110px] truncate">
                   {user.email.split("@")[0]}
                 </span>
                 <span className={`font-heading text-[8px] font-700 ${isHost ? "text-danger" : isFreeViewer ? "text-success" : "text-primary"}`}>
@@ -113,10 +153,11 @@ const Header = () => {
               </div>
               <button
                 onClick={handleLogout}
-                className="p-1.5 rounded text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded font-heading text-[11px] font-700 tracking-wide text-muted-foreground hover:text-danger hover:bg-danger/10 border border-transparent hover:border-danger/30 transition-all"
                 title="Log out"
               >
-                <LogOut size={14} />
+                <LogOut size={12} />
+                <span className="hidden sm:inline">LOGOUT</span>
               </button>
             </div>
           )}
