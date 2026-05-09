@@ -185,6 +185,34 @@ const PredictionPlatform: React.FC = () => {
     handleHighRisk(highRisk);
   }, [handleHighRisk]);
 
+  // ── Test WhatsApp (host only) ─────────────────────────────────────────
+  const [testWALoading, setTestWALoading] = useState(false);
+  const handleTestWhatsApp = async () => {
+    setTestWALoading(true);
+    toast.info("Sending WhatsApp test — check +91 8124919993…");
+    const mockAircraft = [{
+      icao24: "WA-TEST", callsign: "SAR-WA-TEST", lat, lon,
+      altitude_ft: 950, risk_score: 91, risk_level: "CRITICAL",
+      factors: [{ name: "Low Altitude", value: "950 ft", points: 35 }],
+    }];
+    const { supabase: sb } = await import("@/lib/supabase");
+    const { FunctionsHttpError } = await import("@supabase/supabase-js");
+    const { data, error: fnErr } = await sb.functions.invoke("sar-notify", {
+      body: { trigger: "CRITICAL", aircraft: mockAircraft },
+    });
+    if (fnErr) {
+      let msg = fnErr.message;
+      if (fnErr instanceof FunctionsHttpError) {
+        try { msg = `[${fnErr.context?.status}] ${await fnErr.context?.text()}`; } catch {}
+      }
+      toast.error(`WhatsApp test failed: ${msg}`);
+    } else {
+      const r = data?.results ?? {};
+      toast.success(`WhatsApp test sent — WA: ${r.whatsapp ?? "?"}`);
+    }
+    setTestWALoading(false);
+  };
+
   // ── Test Alert (host only) ────────────────────────────────────────────
   const [testAlertLoading, setTestAlertLoading] = useState(false);
   const handleTestAlert = async () => {
@@ -262,7 +290,7 @@ const PredictionPlatform: React.FC = () => {
     : `${count} aircraft within ${scanRadius} km`;
 
   return (
-    <div className="min-h-screen pt-16" style={{ background: "hsl(var(--background))" }}>
+    <div className="min-h-screen" style={{ background: "hsl(var(--background))" }}>
 
       {/* ── Prototype Banner ─────────────────────────────────────────────── */}
       {showBanner && (
@@ -380,14 +408,24 @@ const PredictionPlatform: React.FC = () => {
 
         {/* Test alert (host only) */}
         {isHost && (
-          <button onClick={handleTestAlert} disabled={testAlertLoading}
-            className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50"
-          >
-            {testAlertLoading
-              ? <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
-              : <Activity size={12} />}
-            TEST ALERT
-          </button>
+          <>
+            <button onClick={handleTestAlert} disabled={testAlertLoading}
+              className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 border border-danger/50 text-danger hover:bg-danger/10 transition-all disabled:opacity-50"
+            >
+              {testAlertLoading
+                ? <div className="w-3 h-3 border border-danger border-t-transparent rounded-full animate-spin" />
+                : <Activity size={12} />}
+              TEST ALERT
+            </button>
+            <button onClick={handleTestWhatsApp} disabled={testWALoading}
+              className="flex items-center gap-2 px-3 py-2 rounded font-heading text-xs font-700 border border-success/50 text-success hover:bg-success/10 transition-all disabled:opacity-50"
+            >
+              {testWALoading
+                ? <div className="w-3 h-3 border border-success border-t-transparent rounded-full animate-spin" />
+                : <span style={{ fontSize: 12 }}>💬</span>}
+              TEST WHATSAPP
+            </button>
+          </>
         )}
 
         {/* Count badge */}

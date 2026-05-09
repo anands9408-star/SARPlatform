@@ -3,19 +3,26 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { Toaster } from "sonner";
 import { toast } from "sonner";
 import Header from "@/components/layout/Header";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { SARUser } from "@/hooks/useAuth";
 
-const PredictionPlatform = lazy(() => import("@/pages/PredictionPlatform"));
-const MissionInput        = lazy(() => import("@/pages/MissionInput"));
-const SurvivorAssist      = lazy(() => import("@/pages/SurvivorAssist"));
-const License             = lazy(() => import("@/pages/License"));
-const Documentation       = lazy(() => import("@/pages/Documentation"));
-const HistoryDashboard    = lazy(() => import("@/pages/HistoryDashboard"));
-const LoginPage           = lazy(() => import("@/pages/LoginPage"));
-const AboutPage           = lazy(() => import("@/pages/AboutPage"));
-const LaunchPage          = lazy(() => import("@/pages/LaunchPage"));
+const PredictionPlatform    = lazy(() => import("@/pages/PredictionPlatform"));
+const MissionInput           = lazy(() => import("@/pages/MissionInput"));
+const SurvivorAssist         = lazy(() => import("@/pages/SurvivorAssist"));
+const License                = lazy(() => import("@/pages/License"));
+const Documentation          = lazy(() => import("@/pages/Documentation"));
+const HistoryDashboard       = lazy(() => import("@/pages/HistoryDashboard"));
+const LoginPage              = lazy(() => import("@/pages/LoginPage"));
+const AboutPage              = lazy(() => import("@/pages/AboutPage"));
+const LaunchPage             = lazy(() => import("@/pages/LaunchPage"));
+const ActiveAlerts           = lazy(() => import("@/pages/ActiveAlerts"));
+const AircraftLogs           = lazy(() => import("@/pages/AircraftLogs"));
+const RescueStatus           = lazy(() => import("@/pages/RescueStatus"));
+const SubscriberManagement   = lazy(() => import("@/pages/SubscriberManagement"));
+const Analytics              = lazy(() => import("@/pages/Analytics"));
+const VoiceAI                = lazy(() => import("@/pages/VoiceAI"));
 
 const Loader = () => (
   <div className="flex items-center justify-center min-h-screen" style={{ background: "hsl(var(--background))" }}>
@@ -45,8 +52,6 @@ const NotFound = () => (
 );
 
 // ── Google OAuth callback handler ─────────────────────────────────────────
-// Runs once after Google redirect, resolves role from email, sets SAR session
-
 const HOST_EMAIL = "anands9408@gmail.com";
 
 function GoogleOAuthHandler() {
@@ -61,15 +66,11 @@ function GoogleOAuthHandler() {
       if (isAuthenticated) return;
 
       console.log("[Google OAuth] Callback detected — resolving session…");
-
-      // Give Supabase a moment to exchange the code for a session (PKCE)
       await new Promise((r) => setTimeout(r, 800));
 
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) { console.error("[Google OAuth] getSession error:", error.message); return; }
       if (!session?.user?.email) {
-        console.warn("[Google OAuth] No session/email found after callback");
-        // Clean up URL params and redirect to login
         window.history.replaceState({}, document.title, "/login");
         toast.error("Google sign-in failed — please try again.");
         navigate("/login", { replace: true });
@@ -77,9 +78,6 @@ function GoogleOAuthHandler() {
       }
 
       const email = session.user.email.toLowerCase();
-      console.log("[Google OAuth] Signed in as:", email);
-
-      // Resolve SAR role from email
       let role: SARUser["role"] = "free_viewer";
       if (email === HOST_EMAIL) {
         role = "host";
@@ -104,10 +102,7 @@ function GoogleOAuthHandler() {
       };
       toast.success(msgs[role]);
 
-      // Sign out from Supabase OAuth session (SAR uses its own sessionStorage session)
       await supabase.auth.signOut();
-
-      // Clean URL then navigate
       window.history.replaceState({}, document.title, "/platform");
       navigate("/platform", { replace: true });
     };
@@ -119,7 +114,6 @@ function GoogleOAuthHandler() {
 }
 
 // ── Auth-guarded route ──────────────────────────────────────────────────────
-
 function ProtectedRoute({ children, hostOnly = false }: { children: React.ReactNode; hostOnly?: boolean }) {
   const { isAuthenticated, isHost } = useAuth();
   const location = useLocation();
@@ -133,8 +127,18 @@ function ProtectedRoute({ children, hostOnly = false }: { children: React.ReactN
   return <>{children}</>;
 }
 
-// ── Inner app (has access to AuthContext) ──────────────────────────────────
+// ── Dashboard wrapper — applies sidebar layout to authenticated pages ──────
+function DashboardPage({ children, hostOnly = false }: { children: React.ReactNode; hostOnly?: boolean }) {
+  return (
+    <ProtectedRoute hostOnly={hostOnly}>
+      <DashboardLayout>
+        {children}
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
 
+// ── Inner app ──────────────────────────────────────────────────────────────
 const AppRoutes: React.FC = () => {
   const { isAuthenticated } = useAuth();
 
@@ -144,7 +148,7 @@ const AppRoutes: React.FC = () => {
       <Header />
       <Suspense fallback={<Loader />}>
         <Routes>
-          {/* Public pages — always accessible */}
+          {/* Public pages — no sidebar */}
           <Route path="/"        element={<Navigate to={isAuthenticated ? "/platform" : "/login"} replace />} />
           <Route path="/login"   element={<LoginPage />} />
           <Route path="/license" element={<License />} />
@@ -152,18 +156,56 @@ const AppRoutes: React.FC = () => {
           <Route path="/about"   element={<AboutPage />} />
           <Route path="/launch"  element={<LaunchPage />} />
 
-          {/* Protected pages — require auth */}
+          {/* ── Authenticated dashboard pages — LEFT SIDEBAR LAYOUT ── */}
           <Route path="/platform" element={
-            <ProtectedRoute><PredictionPlatform /></ProtectedRoute>
+            <DashboardPage>
+              <PredictionPlatform />
+            </DashboardPage>
+          } />
+          <Route path="/alerts" element={
+            <DashboardPage>
+              <ActiveAlerts />
+            </DashboardPage>
+          } />
+          <Route path="/logs" element={
+            <DashboardPage>
+              <AircraftLogs />
+            </DashboardPage>
+          } />
+          <Route path="/rescue" element={
+            <DashboardPage>
+              <RescueStatus />
+            </DashboardPage>
+          } />
+          <Route path="/analytics" element={
+            <DashboardPage>
+              <Analytics />
+            </DashboardPage>
+          } />
+          <Route path="/voice" element={
+            <DashboardPage>
+              <VoiceAI />
+            </DashboardPage>
+          } />
+          <Route path="/subscribers" element={
+            <DashboardPage hostOnly>
+              <SubscriberManagement />
+            </DashboardPage>
           } />
           <Route path="/mission" element={
-            <ProtectedRoute hostOnly><MissionInput /></ProtectedRoute>
-          } />
-          <Route path="/survivor" element={
-            <ProtectedRoute hostOnly><SurvivorAssist /></ProtectedRoute>
+            <DashboardPage hostOnly>
+              <MissionInput />
+            </DashboardPage>
           } />
           <Route path="/history" element={
-            <ProtectedRoute hostOnly><HistoryDashboard /></ProtectedRoute>
+            <DashboardPage hostOnly>
+              <HistoryDashboard />
+            </DashboardPage>
+          } />
+          <Route path="/survivor" element={
+            <DashboardPage hostOnly>
+              <SurvivorAssist />
+            </DashboardPage>
           } />
 
           <Route path="*" element={<NotFound />} />

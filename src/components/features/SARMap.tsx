@@ -122,14 +122,33 @@ const SARMap: React.FC<SARMapProps> = ({
       preferCanvas: true, // much faster for many markers
     });
 
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    // Satellite tile layer (Esri World Imagery — high-res, clear)
+    const satelliteLayer = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: "abcd",
-        maxZoom: 20,
+        attribution: "Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community",
+        maxZoom: 19,
       }
-    ).addTo(map);
+    );
+
+    // Labels overlay (keeps place names visible over satellite)
+    const labelsLayer = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "", maxZoom: 19, opacity: 0.85 }
+    );
+
+    // Dark fallback
+    const darkLayer = L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      { attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 20 }
+    );
+
+    satelliteLayer.addTo(map);
+    labelsLayer.addTo(map);
+
+    // Layer control — let users toggle
+    const baseMaps = { "🛰 Satellite": satelliteLayer, "🌑 Dark": darkLayer };
+    L.control.layers(baseMaps, {}, { position: "topright", collapsed: true }).addTo(map);
 
     // Layer groups
     const aircraftLayer = L.layerGroup().addTo(map);

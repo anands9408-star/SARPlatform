@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import sarLogo from "@/assets/sar-logo.png";
-import { Radio, Map, FileText, BookOpen, History, LogOut, Shield, Eye, Globe, Info, Rocket, LogIn } from "lucide-react";
+import { Info, Rocket, BookOpen, FileText, LogIn, LogOut, Shield, Eye, Globe } from "lucide-react";
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -22,21 +22,6 @@ const Header = () => {
     { to: "/docs",    label: "DOCS",    icon: BookOpen, end: false },
     { to: "/license", label: "LICENSE", icon: FileText, end: false },
   ];
-
-  // ── Authenticated app links — shown in the middle after logo ──────────
-  const appNavItems = [
-    { to: "/platform", label: "PLATFORM", icon: Map,     end: true,  requiresHost: false, freeViewerOk: true  },
-    { to: "/mission",  label: "MISSION",  icon: Radio,   end: false, requiresHost: true,  freeViewerOk: false },
-    { to: "/history",  label: "HISTORY",  icon: History, end: false, requiresHost: true,  freeViewerOk: false },
-  ];
-
-  const filteredAppItems = isAuthenticated
-    ? appNavItems.filter((n) => {
-        if (n.requiresHost) return isHost;
-        if (isFreeViewer)   return n.freeViewerOk;
-        return true;
-      })
-    : [];
 
   return (
     <header
@@ -95,32 +80,6 @@ const Header = () => {
             <div className="label-tag text-[8px]">Search Aircraft Rescue</div>
           </div>
         </NavLink>
-
-        {/* ── App nav (platform / mission / history) ──────────────────── */}
-        {filteredAppItems.length > 0 && (
-          <>
-            <div className="w-px h-8 shrink-0" style={{ background: "hsl(var(--border))" }} />
-            <nav className="flex items-center gap-0.5">
-              {filteredAppItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-2.5 py-1.5 rounded font-heading text-[11px] font-600 tracking-wide transition-all whitespace-nowrap ${
-                      isActive
-                        ? "bg-primary/10 text-primary border border-primary/30"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    }`
-                  }
-                >
-                  <item.icon size={11} />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          </>
-        )}
 
         {/* ── Spacer ──────────────────────────────────────────────────── */}
         <div className="flex-1" />
