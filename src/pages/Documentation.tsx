@@ -624,6 +624,75 @@ const Documentation: React.FC = () => {
     new Set(["overview", "operational-scenarios"])
   );
 
+  // Inject page-specific JSON-LD structured data for Google rich results
+  React.useEffect(() => {
+    const techArticleScript = document.createElement("script");
+    techArticleScript.type = "application/ld+json";
+    techArticleScript.id = "jsonld-tech-article";
+    techArticleScript.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "SAR Platform Physics Engine — Kinematics, Vector Math & Wind Drift for Aircraft Crash Prediction",
+      "description": "Technical reference for the SAR Platform physics engine: kinematic equations (v=u+at), vector decomposition of aircraft and wind velocities, aerodynamic drift, ENU coordinate conversion, uncertainty expansion, ELT triangulation, and AI prediction via Google Gemini 3 Flash.",
+      "url": "https://react-9b5gkx.onspace.build/docs",
+      "image": "https://react-9b5gkx.onspace.build/og-image.jpg",
+      "author": { "@type": "Person", "name": "SAR Platform Team", "email": "anands9408@gmail.com" },
+      "publisher": {
+        "@type": "Organization",
+        "name": "SAR Platform",
+        "logo": { "@type": "ImageObject", "url": "https://react-9b5gkx.onspace.build/sar-product-logo.png" }
+      },
+      "datePublished": "2025-01-01",
+      "dateModified": "2026-05-09",
+      "inLanguage": "en-IN",
+      "keywords": "physics engine aircraft, kinematics aviation, ADS-B prediction, DGCA India, AAI airports, ELT triangulation 406 MHz, SAR search rescue, Google Gemini AI aviation, OpenSky Network API",
+      "articleSection": "Technical Documentation",
+      "proficiencyLevel": "Expert",
+      "about": [
+        { "@type": "Thing", "name": "ADS-B Aircraft Tracking" },
+        { "@type": "Thing", "name": "Search and Rescue Operations" },
+        { "@type": "Thing", "name": "DGCA India Civil Aviation" },
+        { "@type": "Thing", "name": "Emergency Locator Transmitter ELT" },
+        { "@type": "Thing", "name": "Google Gemini AI" }
+      ]
+    });
+
+    const howToScript = document.createElement("script");
+    howToScript.type = "application/ld+json";
+    howToScript.id = "jsonld-howto";
+    howToScript.text = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Track Live Aircraft and Generate AI SAR Predictions with SAR Platform",
+      "description": "Step-by-step guide to using SAR Platform: login via email OTP, load live ADS-B aircraft data from OpenSky Network, review danger-scored aircraft, generate Google Gemini AI crash prediction reports, and use ELT triangulation for signal-lost aircraft.",
+      "url": "https://react-9b5gkx.onspace.build/docs",
+      "totalTime": "PT5M",
+      "supply": [
+        { "@type": "HowToSupply", "name": "Email address for OTP login" },
+        { "@type": "HowToSupply", "name": "SAR Platform subscriber or host access" }
+      ],
+      "step": [
+        { "@type": "HowToStep", "position": 1, "name": "Login via Email OTP", "text": "Navigate to the SAR Platform login page. Enter your registered email and click 'Send OTP'. A 4-digit code is delivered to your inbox. Enter the code to authenticate." },
+        { "@type": "HowToStep", "position": 2, "name": "Select Scan Radius", "text": "Choose your ADS-B scan radius: 500 km, 1,000 km, 2,000 km, or Global. The platform fetches live aircraft from OpenSky Network within the selected bounds every 25 seconds." },
+        { "@type": "HowToStep", "position": 3, "name": "Review Danger-Scored Aircraft", "text": "The Danger Assessment panel scores each aircraft 0–100. CRITICAL (≥60) and HIGH (≥40) aircraft are highlighted and trigger automatic Gmail alerts to the host." },
+        { "@type": "HowToStep", "position": 4, "name": "Generate AI Prediction Report", "text": "Select an aircraft on the map and click 'Generate AI Prediction'. Google Gemini 3 Flash analyses telemetry, physics engine output, and weather to produce a full SAR tactical report with impact zone and search sectors." },
+        { "@type": "HowToStep", "position": 5, "name": "Use ELT Triangulation", "text": "If an aircraft goes missing, open the ELT Panel. Enter bearing readings from ground stations monitoring 121.5 MHz or 406 MHz. The platform calculates and displays the triangulated crash position on the map." },
+        { "@type": "HowToStep", "position": 6, "name": "Export Historical Data", "text": "Hosts access the History Dashboard to view past aircraft tracks and risk assessments. Download CSV for post-incident analysis. Data retention is configurable from 6 hours to 7 days." }
+      ]
+    });
+
+    // Remove any existing injected scripts before adding new ones
+    document.getElementById("jsonld-tech-article")?.remove();
+    document.getElementById("jsonld-howto")?.remove();
+    document.head.appendChild(techArticleScript);
+    document.head.appendChild(howToScript);
+
+    return () => {
+      document.getElementById("jsonld-tech-article")?.remove();
+      document.getElementById("jsonld-howto")?.remove();
+    };
+  }, []);
+
   const toggle = (id: string) => {
     setOpenSections((prev) => {
       const next = new Set(prev);

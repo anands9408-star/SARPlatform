@@ -51,6 +51,121 @@
     <!-- Performance hints -->
     <link rel="dns-prefetch" href="https://dwrhifxysicsdedodwrh.backend.onspace.ai" />
 
+    <!-- Google Search Console Verification -->
+    <meta name="google-site-verification" content="5xdGO6jBklQjGanYVNgeLIVzsps2jhz1LlDl7lPhUTM" />
+
+    <!-- JSON-LD: TechArticle — Physics Engine Documentation -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "SAR Platform Physics Engine — Kinematics, Vector Math & Wind Drift for Aircraft Crash Prediction",
+      "description": "Technical documentation for the SAR Platform physics engine: kinematic equations (v=u+at, s=ut+½at²), vector decomposition of aircraft and wind velocities, aerodynamic drift, ENU coordinate conversion, uncertainty cone expansion, and LKP-based signal-loss prediction for aviation SAR operations.",
+      "url": "https://react-9b5gkx.onspace.build/docs",
+      "image": "https://react-9b5gkx.onspace.build/og-image.jpg",
+      "author": {
+        "@type": "Person",
+        "name": "SAR Platform Team",
+        "email": "anands9408@gmail.com"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "SAR Platform",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://react-9b5gkx.onspace.build/sar-product-logo.png"
+        }
+      },
+      "datePublished": "2025-01-01",
+      "dateModified": "2026-05-09",
+      "inLanguage": "en-IN",
+      "about": [
+        {"@type": "Thing", "name": "ADS-B Aircraft Tracking"},
+        {"@type": "Thing", "name": "Search and Rescue Operations"},
+        {"@type": "Thing", "name": "Aviation Physics Engine"},
+        {"@type": "Thing", "name": "DGCA India Civil Aviation"},
+        {"@type": "Thing", "name": "Emergency Locator Transmitter"}
+      ],
+      "keywords": "physics engine, kinematics aircraft, ADS-B prediction, vector math aviation, SAR platform, DGCA, AAI, ELT triangulation, crash prediction AI",
+      "articleSection": "Technical Documentation",
+      "proficiencyLevel": "Expert"
+    }
+    </script>
+
+    <!-- JSON-LD: HowTo — How to track aircraft with SAR Platform -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Track Aircraft and Generate SAR Predictions with SAR Platform",
+      "description": "Step-by-step guide to using SAR Platform for real-time ADS-B aircraft tracking, AI crash prediction via Google Gemini, ELT triangulation, and automated Gmail emergency alerts.",
+      "url": "https://react-9b5gkx.onspace.build/docs",
+      "image": "https://react-9b5gkx.onspace.build/og-image.jpg",
+      "totalTime": "PT5M",
+      "supply": [
+        {"@type": "HowToSupply", "name": "Email address for OTP login"},
+        {"@type": "HowToSupply", "name": "SAR Platform subscriber or host access"},
+        {"@type": "HowToSupply", "name": "Web browser (Chrome, Firefox, Safari, Edge)"}
+      ],
+      "tool": [
+        {"@type": "HowToTool", "name": "SAR Platform web application"},
+        {"@type": "HowToTool", "name": "OpenSky Network ADS-B data"},
+        {"@type": "HowToTool", "name": "Google Gemini 3 Flash AI"}
+      ],
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Login with Email OTP",
+          "text": "Go to the SAR Platform login page. Enter your email address and click 'Send OTP'. A 4-digit code will be sent to your email via Gmail. Enter the OTP to verify your identity.",
+          "url": "https://react-9b5gkx.onspace.build/login"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Select Your Role",
+          "text": "Choose your access role: Host (full access + global scan), Subscriber (AI prediction + 1000 km scan), or Free Viewer (read-only map + weather). Hosts enter password 0904; Subscribers are auto-detected by email; Free Viewers enter the access password.",
+          "url": "https://react-9b5gkx.onspace.build/login"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Set Scan Radius and Load Aircraft",
+          "text": "On the SAR Platform dashboard, select your scan radius (500 km, 1,000 km, 2,000 km, or Global). The platform fetches live ADS-B data from OpenSky Network and displays aircraft on the interactive map, refreshed every 25 seconds.",
+          "url": "https://react-9b5gkx.onspace.build/platform"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Review Danger-Scored Aircraft",
+          "text": "The Danger Assessment panel automatically scores each aircraft 0–100 across altitude, descent rate, airspeed, weather, and signal age. Aircraft scoring CRITICAL (≥60) or HIGH (≥40) are highlighted in red/orange. Gmail alerts are sent automatically for CRITICAL aircraft.",
+          "url": "https://react-9b5gkx.onspace.build/platform"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 5,
+          "name": "Generate AI Prediction Report",
+          "text": "Click on any tracked aircraft to select it, then click 'Generate AI Prediction' in the AI Prediction Panel. Google Gemini 3 Flash analyses the aircraft's telemetry, physics engine output, and weather to generate a full SAR tactical report with crash probability, predicted impact zone, and recommended search sectors.",
+          "url": "https://react-9b5gkx.onspace.build/platform"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 6,
+          "name": "Use ELT Triangulation (if aircraft missing)",
+          "text": "If an aircraft disappears from tracking, open the ELT Panel. Enter signal bearing and strength readings from ground stations monitoring 121.5 MHz or 406 MHz ELT frequencies. The platform draws bearing lines on the map and calculates the triangulated crash position.",
+          "url": "https://react-9b5gkx.onspace.build/platform"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 7,
+          "name": "Review Historical Data and Export CSV",
+          "text": "Hosts can access the History Dashboard to view past aircraft tracks, weather snapshots, and risk assessments. Use the CSV export to download data for post-incident analysis. Data retention is configurable from 6 hours to 7 days.",
+          "url": "https://react-9b5gkx.onspace.build/history"
+        }
+      ]
+    }
+    </script>
+
     <!-- JSON-LD: SoftwareApplication -->
     <script type="application/ld+json">
     {

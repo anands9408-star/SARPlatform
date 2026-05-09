@@ -9,8 +9,10 @@
 import { SMTPClient } from "https://deno.land/x/denomailer@1.3.0/mod.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const RECIPIENT_EMAIL = "anands9408@gmail.com";
-const SENDER_EMAIL    = "anands9408@gmail.com";
+const RECIPIENT_EMAIL  = "anands9408@gmail.com";
+const SENDER_EMAIL     = "anands9408@gmail.com";
+const WHATSAPP_TO      = "whatsapp:+918124919993";
+const WHATSAPP_FROM    = "whatsapp:+14155238886"; // Twilio sandbox number (replace with approved number after go-live)
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -130,6 +132,57 @@ Deno.serve(async (req: Request) => {
       } catch (e: any) {
         results.email = `Gmail error: ${e.message}`;
         console.error("[SAR Notify] Gmail exception:", e.message);
+      }
+    }
+
+    // ── WhatsApp via Twilio ──────────────────────────────────────────────
+    const twilioSid   = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const twilioToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+
+    if (!twilioSid || !twilioToken) {
+      results.whatsapp = "skipped — TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN not configured";
+    } else {
+      try {
+        const topAc = aircraft[0];
+        const emoji = trigger === "CRASH" ? "🚨" : trigger === "CRITICAL" ? "⚠️" : "🔶";
+        const msgLines = [
+          `${emoji} *SAR ALERT — ${trigger}*`,
+          `Aircraft: *${topAc?.callsign || topAc?.icao24 || "Unknown"}*`,
+          `Risk: *${topAc?.risk_level} ${topAc?.risk_score}/100*`,
+          `Altitude: ${topAc?.altitude_ft?.toLocaleString() ?? "?"}ft`,
+          `Position: ${topAc?.lat?.toFixed(4)}°N, ${topAc?.lon?.toFixed(4)}°E`,
+          `Total flagged: ${aircraft.length} aircraft`,
+          `Time: ${new Date().toUTCString()}`,
+          `Platform: https://react-9b5gkx.onspace.build/platform`,
+        ];
+        const body = msgLines.join("\n");
+
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+        const formData = new URLSearchParams();
+        formData.append("From", WHATSAPP_FROM);
+        formData.append("To", WHATSAPP_TO);
+        formData.append("Body", body);
+
+        const whatsappResp = await fetch(twilioUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": "Basic " + btoa(`${twilioSid}:${twilioToken}`),
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: formData.toString(),
+        });
+
+        if (whatsappResp.ok) {
+          results.whatsapp = "sent";
+          console.log("[SAR Notify] WhatsApp alert sent to", WHATSAPP_TO);
+        } else {
+          const errText = await whatsappResp.text();
+          results.whatsapp = `Twilio error ${whatsappResp.status}: ${errText.slice(0, 200)}`;
+          console.error("[SAR Notify] Twilio WhatsApp error:", results.whatsapp);
+        }
+      } catch (e: any) {
+        results.whatsapp = `WhatsApp exception: ${e.message}`;
+        console.error("[SAR Notify] WhatsApp exception:", e.message);
       }
     }
 
