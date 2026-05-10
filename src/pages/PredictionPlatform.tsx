@@ -270,6 +270,22 @@ const PredictionPlatform: React.FC = () => {
     }
   }, [isHost, user?.email]);
 
+  // ── Publish live sensor context for Voice AI ──────────────────────────
+  useEffect(() => {
+    const criticalCount = aircraft.filter((a) => a.riskLevel === "CRITICAL").length;
+    const ctx = {
+      lat,
+      lon,
+      activeAircraft: showLiveAircraft ? count : 0,
+      criticalCount,
+      scanRadiusKm: isGlobal ? "GLOBAL" : scanRadius,
+      weather: weather
+        ? `${weather.weatherDescription}, Wind ${weather.windSpeed} km/h`
+        : "not loaded",
+    };
+    localStorage.setItem("sar_ai_context", JSON.stringify(ctx));
+  }, [lat, lon, count, aircraft, scanRadius, isGlobal, showLiveAircraft, weather]);
+
   const handleAircraftClick = useCallback((ac: LiveAircraft) => {
     setSelectedAircraft(ac);
     setTimeSinceLKP(0);
