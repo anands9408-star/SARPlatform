@@ -1,11 +1,11 @@
 /**
  * Voice AI Command Page — SAR AI Voice Interface
- * Streaming outputs · Contextual memory · Map awareness · Dynamic decisions
+ * Streaming outputs · Contextual memory · Map awareness · Dynamic decisions · JARVIS Alert Watcher
  */
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Mic, MicOff, Send, Volume2, VolumeX, Bot, Loader,
-  Trash2, Radio, Zap, MapPin, Activity, FlaskConical,
+  Trash2, Radio, Zap, MapPin, Activity, FlaskConical, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ interface Message {
   content: string;
   timestamp: Date;
   streaming?: boolean;
+  isAlert?: boolean;
 }
 
 interface MapContext {
@@ -80,6 +81,7 @@ const VoiceAI: React.FC = () => {
   const [transcript, setTranscript]     = useState("");
   const [mapCtx, setMapCtx]             = useState<MapContext>({});
   const [testLoading, setTestLoading]   = useState(false);
+  const [lastAlertCount, setLastAlertCount] = useState<number>(0);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synthRef       = useRef<SpeechSynthesis | null>(null);
@@ -115,6 +117,40 @@ const VoiceAI: React.FC = () => {
     synthRef.current?.speak(utterance);
   }, [ttsEnabled, hasSpeechSynth]);
 
+  // ── Proactive Alert Watcher (JARVIS Mode) ──────────────────────────────
+  useEffect(() => {
+    if (mapCtx.criticalCount && mapCtx.criticalCount > 0 && mapCtx.criticalCount !== lastAlertCount) {
+      setLastAlertCount(mapCtx.criticalCount);
+
+      const alertMsg = `CRITICAL ALERT: ${mapCtx.criticalCount} aircraft detected with abnormal descent rates near ${mapCtx.lat?.toFixed(3)}°N ${mapCtx.lon?.toFixed(3)}°E. Initiating emergency rescue protocols. Standby for AI analysis.`;
+
+      // Add system alert to message list
+      setMessages((prev) => [...prev, {
+        id: `alert-${Date.now()}`,
+        role: "ai",
+        content: alertMsg,
+        timestamp: new Date(),
+        streaming: false,
+        isAlert: true,
+      }]);
+
+      // Speak immediately
+      speak(alertMsg);
+
+      // Toast notification
+      toast.error("🚨 MISSION CRITICAL: Aircraft Emergency", {
+        duration: 10000,
+        description: `${mapCtx.criticalCount} critical aircraft detected. SAR AI analyzing situation…`,
+      });
+
+      // Auto-send critical analysis query to Gemini 3 Pro
+      setTimeout(() => {
+        const criticalQuery = `URGENT: ${mapCtx.criticalCount} aircraft in critical state near ${mapCtx.lat?.toFixed(4)}°N, ${mapCtx.lon?.toFixed(4)}°E (Scan radius: ${mapCtx.scanRadiusKm}km). Provide immediate risk assessment, recommended SAR actions, and resource deployment strategy.`;
+        sendMessage(criticalQuery);
+      }, 1500); // Give operator time to process voice alert
+    }
+  }, [mapCtx.criticalCount, lastAlertCount, speak]);
+
   // ── Streaming message send ─────────────────────────────────────────────
   const sendMessage = useCallback(async (text: string) => {
     const q = text.trim();
@@ -141,7 +177,7 @@ const VoiceAI: React.FC = () => {
     const ctx = getLiveMapContext();
     let systemWithCtx = SAR_SYSTEM_PROMPT;
     if (ctx.lat && ctx.lon) {
-      systemWithCtx += `\n\nLIVE MAP CONTEXT (real-time sensor data):\n- SAR Center: ${ctx.lat?.toFixed(4)}°N, ${ctx.lon?.toFixed(4)}°E\n- Active aircraft tracked: ${ctx.activeAircraft ?? "unknown"}\n- CRITICAL alerts: ${ctx.criticalCount ?? 0}\n- Scan radius: ${ctx.scanRadiusKm ?? "unknown"} km\n- Weather: ${ctx.weather ?? "not available"}\nUse this sensor data in your analysis when relevant.`;
+      systemWithCtx += `\n\nLIVE MAP CONTEXT (real-time sensor data):\n- SAR Center: ${ctx.lat?.toFixed(4)}°N, ${ctx.lon?.toFixed(4)}°E\n- Active aircraft tracked: ${ctx.activeAircraft ?? "unknown"}\n- CRITICAL aircraft: ${ctx.criticalCount ?? 0}\n- Scan radius: ${ctx.scanRadiusKm ?? "N/A"} km\n- Weather: ${ctx.weather ?? "Clear"}`;
     }
 
     // Add streaming AI message placeholder
@@ -305,7 +341,7 @@ const VoiceAI: React.FC = () => {
               <div className="font-heading text-base font-700 tracking-widest text-foreground">SAR AI ASSISTANT</div>
               <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-2">
                 <Zap size={9} className="text-primary" />
-                Streaming · Gemini 3 Flash · Contextual Memory
+                Streaming · Gemini 3 Pro · Contextual Memory · JARVIS Alerts
                 {hasMapCtx && (
                   <span className="flex items-center gap-1 text-success">
                     <MapPin size={9} /> Map-Aware
@@ -356,7 +392,9 @@ const VoiceAI: React.FC = () => {
               <span className="text-foreground">Aircraft: {mapCtx.activeAircraft}</span>
             )}
             {mapCtx.criticalCount !== undefined && mapCtx.criticalCount > 0 && (
-              <span style={{ color: "#ef4444" }} className="font-700">CRITICAL: {mapCtx.criticalCount}</span>
+              <span style={{ color: "#ef4444" }} className="font-700 flex items-center gap-1">
+                <AlertTriangle size={9} /> CRITICAL: {mapCtx.criticalCount}
+              </span>
             )}
             {mapCtx.scanRadiusKm && (
               <span className="text-muted-foreground">Scan: {mapCtx.scanRadiusKm} km</span>
@@ -378,7 +416,8 @@ const VoiceAI: React.FC = () => {
               <div className="font-heading text-xl font-700 text-foreground mb-2">SAR AI Ready</div>
               <p className="text-sm text-muted-foreground max-w-md">
                 Streaming intelligence for aviation safety. Ask about aircraft tracking, SAR operations, DGCA regulations, ELT procedures, or the platform's physics engine.
-                {hasMapCtx && <span className="block mt-1 text-primary">Live map context is active — AI has real-time sensor awareness.</span>}
+                {hasMapCtx && <span className="block mt-1 text-primary">✓ Live map context is active — AI has real-time sensor awareness.</span>}
+                {hasMapCtx && mapCtx.criticalCount === 0 && <span className="block mt-1 text-success">✓ No critical alerts. JARVIS watcher is active.</span>}
                 {hasSpeechAPI && <span className="block mt-1">Click the microphone to speak.</span>}
               </p>
               <p className="text-xs text-muted-foreground mt-2">Support: anands9408@gmail.com</p>
@@ -412,17 +451,26 @@ const VoiceAI: React.FC = () => {
           <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             {msg.role === "ai" && (
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mr-2 mt-1"
-                style={{ background: "hsl(var(--primary)/0.15)", border: "1px solid hsl(var(--primary)/0.3)" }}>
+                style={{
+                  background: msg.isAlert ? "hsl(var(--danger)/0.15)" : "hsl(var(--primary)/0.15)",
+                  border: msg.isAlert ? "1px solid hsl(var(--danger)/0.3)" : "1px solid hsl(var(--primary)/0.3)"
+                }}>
                 {msg.streaming
                   ? <Loader size={14} className="text-primary animate-spin" />
+                  : msg.isAlert
+                  ? <AlertTriangle size={14} style={{ color: "#ef4444" }} />
                   : <Bot size={14} className="text-primary" />}
               </div>
             )}
             <div className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${
               msg.role === "user" ? "text-white font-mono" : "text-foreground font-mono"
             }`} style={{
-              background: msg.role === "user" ? "hsl(var(--primary))" : "hsl(var(--surface))",
-              border: msg.role === "ai" ? "1px solid hsl(var(--border))" : "none",
+              background: msg.role === "user" ? "hsl(var(--primary))" : msg.isAlert ? "hsl(var(--danger)/0.08)" : "hsl(var(--surface))",
+              border: msg.role === "ai"
+                ? msg.isAlert
+                  ? "1px solid hsl(var(--danger)/0.4)"
+                  : "1px solid hsl(var(--border))"
+                : "none",
             }}>
               {msg.content}
               {msg.streaming && msg.content && (
@@ -431,9 +479,10 @@ const VoiceAI: React.FC = () => {
               {!msg.content && msg.streaming && (
                 <span className="text-muted-foreground text-xs">Generating…</span>
               )}
-              <div className={`text-[9px] mt-1.5 ${msg.role === "user" ? "text-white/60" : "text-muted-foreground"}`}>
+              <div className={`text-[9px] mt-1.5 ${msg.role === "user" ? "text-white/60" : msg.isAlert ? "text-danger/60" : "text-muted-foreground"}`}>
                 {msg.timestamp.toLocaleTimeString()}
                 {msg.streaming && <span className="ml-2 text-primary">● streaming</span>}
+                {msg.isAlert && <span className="ml-2 text-danger font-700">🚨 ALERT</span>}
               </div>
             </div>
           </div>
@@ -473,7 +522,7 @@ const VoiceAI: React.FC = () => {
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
             placeholder="Ask SAR AI about aviation safety, DGCA, ELT, crash prediction… (real-time streaming)"
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary disabled:opacity-50 transition-colors"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary disabled:opacity-50"
           />
           {loading ? (
             <button
