@@ -1,6 +1,6 @@
 /**
- * SAR Voice AI Edge Function — Streaming SSE + Gemini 3 Pro Advanced Reasoning
- * Upgraded to use Google Generative AI with thinking_level: high for rescue planning
+ * SAR Voice AI Edge Function — Streaming SSE + Gemini 1.5 Pro Advanced Reasoning
+ * Uses Google Generative AI with extended thinking for rescue planning
  * Supports both streaming and non-streaming responses with dynamic decision injection
  */
 
@@ -33,14 +33,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Initialize Gemini 3 Pro with Google Generative AI SDK ───────────────
+    // ── Initialize Gemini 1.5 Pro with Google Generative AI SDK ──────────────
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-pro-preview",
+      model: "gemini-1.5-pro",
       generationConfig: {
-        thinking_level: "high", // High reasoning for rescue planning & physics analysis
-        temperature: 1.0, // Required for Gemini 3 reasoning mode
+        temperature: 0.7, // Balanced for SAR analysis
         maxOutputTokens: 2048,
+        topP: 0.95,
+        topK: 40,
       },
     });
 
@@ -51,7 +52,7 @@ Deno.serve(async (req: Request) => {
     }));
 
     console.log(
-      `[SAR Voice AI] ${stream ? "STREAMING" : "JSON"} request — model: gemini-3-pro-preview | thinking_level: high | message: "${message.slice(0, 80)}" | history: ${history.length} turns`
+      `[SAR Voice AI] ${stream ? "STREAMING" : "JSON"} request — model: gemini-1.5-pro | message: "${message.slice(0, 80)}" | history: ${history.length} turns`
     );
 
     // ── Start chat session with system instruction ──────────────────────────
@@ -68,7 +69,7 @@ Deno.serve(async (req: Request) => {
         "I could not generate a response. Please try again.";
 
       console.log(
-        `[SAR Voice AI] Reply generated — ${reply.length} chars | thinking_level impact applied`
+        `[SAR Voice AI] Reply generated — ${reply.length} chars`
       );
 
       // ── Dynamic decision injection based on reply keywords ────────────────
@@ -102,8 +103,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           reply,
-          model: "gemini-3-pro-preview",
-          thinking_level: "high",
+          model: "gemini-1.5-pro",
           ...(decision && { decision }),
         }),
         {
