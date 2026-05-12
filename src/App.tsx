@@ -7,9 +7,6 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { SARUser } from "@/hooks/useAuth";
-import emailjs from '@emailjs/browser';
-
-emailjs.init("vrH9CVMrraCGOD0t4");
 
 const PredictionPlatform    = lazy(() => import("@/pages/PredictionPlatform"));
 const MissionInput           = lazy(() => import("@/pages/MissionInput"));
@@ -141,7 +138,7 @@ function DashboardPage({ children, hostOnly = false }: { children: React.ReactNo
   );
 }
 
-// ── Inner app ────────────────────────────────────────────────────────────[...]
+// ── Inner app ──────────────────────────────────────────────────────────────
 const AppRoutes: React.FC = () => {
   const { isAuthenticated } = useAuth();
 
