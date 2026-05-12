@@ -89,7 +89,7 @@ const VoiceAI: React.FC = () => {
     synthRef.current?.speak(utterance);
   }, [ttsEnabled, hasSpeechSynth]);
 
-  // ── Streaming message send with Robust Parsing (Modified Section) ──────
+  // ── Streaming message send with Robust Parsing ──────
   const sendMessage = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q || loading) return;
@@ -128,47 +128,57 @@ const VoiceAI: React.FC = () => {
 
       if (!resp.ok) throw new Error(`[${resp.status}] AI Connection Error`);
 
-      const reader = resp.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const contentType = resp.headers.get("content-type") || "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // IF BACKEND SENDS STANDARD JSON (Not Streaming)
+      if (contentType.includes("application/json")) {
+        const data = await resp.json();
+        const reply = data.reply || data.text || data.choices?.[0]?.message?.content || JSON.stringify(data);
+        
+        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: reply, streaming: false } : m));
+        speak(reply);
+      } 
+      // IF BACKEND SENDS A STREAM OR RAW TEXT
+      else {
+        const reader = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = "";
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const raw = line.slice(6).trim();
-            if (raw === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(raw);
-              // FIXED LOGIC: Multiple paths to catch text
-              const delta = parsed.choices?.[0]?.delta?.content || parsed.text || parsed.reply || "";
-              if (delta) {
-                accumulated += delta;
-                setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: accumulated } : m));
-              }
-            } catch (e) {
-              // FALLBACK: If not JSON, use the raw text
-              if (raw && !raw.startsWith("{")) {
-                accumulated += raw;
-                setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: accumulated } : m));
+          const chunk = decoder.decode(value, { stream: true });
+
+          if (chunk.includes("data: ")) {
+            const lines = chunk.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const raw = line.slice(6).trim();
+                if (raw === "[DONE]") continue;
+                try {
+                  const parsed = JSON.parse(raw);
+                  const delta = parsed.choices?.[0]?.delta?.content || parsed.text || parsed.reply || "";
+                  accumulated += delta;
+                } catch (e) {}
               }
             }
+          } else {
+            // THIS is the line that fixes your empty bubbles if the backend isn't using "data: "
+            accumulated += chunk.replace(/\[DONE\]/g, ""); 
           }
-        }
-      }
 
-      setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, streaming: false } : m));
-      speak(accumulated);
+          setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: accumulated, streaming: true } : m));
+        }
+
+        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, streaming: false } : m));
+        speak(accumulated);
+      }
 
     } catch (err: any) {
       if (err.name !== "AbortError") {
         toast.error("SAR AI Error");
-        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: "Error communicating with Gemini backend.", streaming: false } : m));
+        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: "Error communicating with Gemini backend: " + err.message, streaming: false } : m));
       }
     }
     setLoading(false);
@@ -236,3 +246,4 @@ const VoiceAI: React.FC = () => {
 };
 
 export default VoiceAI;
+
