@@ -82,14 +82,14 @@ const VoiceAI: React.FC = () => {
   }, [messages]);
 
   const speak = useCallback((text: string) => {
-    if (!ttsEnabled || !hasSpeechSynth) return;
+    if (!ttsEnabled || !hasSpeechSynth || !text) return;
     synthRef.current?.cancel();
     const utterance = new SpeechSynthesisUtterance(text.slice(0, 400));
     utterance.lang  = "en-IN";
     synthRef.current?.speak(utterance);
   }, [ttsEnabled, hasSpeechSynth]);
 
-  // ── Streaming message send with Robust Parsing ──────
+  // ── Bulletproof Streaming message send ──────
   const sendMessage = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q || loading) return;
@@ -126,11 +126,14 @@ const VoiceAI: React.FC = () => {
         signal: abortRef.current.signal,
       });
 
-      if (!resp.ok) throw new Error(`[${resp.status}] AI Connection Error`);
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`[${resp.status}] ${errorText.substring(0, 100)}`);
+      }
 
       const contentType = resp.headers.get("content-type") || "";
 
-      // IF BACKEND SENDS STANDARD JSON (Not Streaming)
+      // PATH 1: IF BACKEND SENDS STANDARD JSON (Not Streaming)
       if (contentType.includes("application/json")) {
         const data = await resp.json();
         const reply = data.reply || data.text || data.choices?.[0]?.message?.content || JSON.stringify(data);
@@ -138,7 +141,7 @@ const VoiceAI: React.FC = () => {
         setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: reply, streaming: false } : m));
         speak(reply);
       } 
-      // IF BACKEND SENDS A STREAM OR RAW TEXT
+      // PATH 2: IF BACKEND SENDS A STREAM OR RAW TEXT
       else {
         const reader = resp.body!.getReader();
         const decoder = new TextDecoder();
@@ -150,7 +153,8 @@ const VoiceAI: React.FC = () => {
 
           const chunk = decoder.decode(value, { stream: true });
 
-          if (chunk.includes("data: ")) {
+          // If the chunk contains Server-Sent Events (SSE) format
+          if (chunk.includes("data:")) {
             const lines = chunk.split("\n");
             for (const line of lines) {
               if (line.startsWith("data: ")) {
@@ -160,17 +164,22 @@ const VoiceAI: React.FC = () => {
                   const parsed = JSON.parse(raw);
                   const delta = parsed.choices?.[0]?.delta?.content || parsed.text || parsed.reply || "";
                   accumulated += delta;
-                } catch (e) {}
+                } catch (e) {
+                  // Fallback for malformed JSON inside SSE
+                  if (raw && !raw.startsWith("{")) accumulated += raw;
+                }
               }
             }
           } else {
-            // THIS is the line that fixes your empty bubbles if the backend isn't using "data: "
+            // If the chunk is just raw text, append it directly
             accumulated += chunk.replace(/\[DONE\]/g, ""); 
           }
 
+          // Update UI immediately with the parsed/raw text
           setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: accumulated, streaming: true } : m));
         }
 
+        // Stream complete
         setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, streaming: false } : m));
         speak(accumulated);
       }
@@ -246,4 +255,3 @@ const VoiceAI: React.FC = () => {
 };
 
 export default VoiceAI;
-
