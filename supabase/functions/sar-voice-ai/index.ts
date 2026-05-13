@@ -1,14 +1,7 @@
-/**
- * SAR Voice AI Edge Function — Streaming SSE + Gemini 1.5 Pro Advanced Reasoning
- * Uses Google Generative AI with extended thinking for rescue planning
- * Supports both streaming and non-streaming responses with dynamic decision injection
- */
-
 import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.16.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req: Request) => {
-  // ── CORS preflight ──────────────────────────────────────────────────────
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -25,18 +18,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const apiKey = Deno.env.get("GOOGLE_API_KEY");
-
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "GOOGLE_API_KEY not configured — check Supabase secrets" }),
+        JSON.stringify({ error: "GOOGLE_API_KEY not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ── Initialize Gemini 1.5 Pro ────────────────────────────────────────────
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // FIX #1: systemInstruction MUST be passed here, NOT in startChat
+    // Using gemini-1.5-pro with system instruction correctly configured
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-pro",
       systemInstruction: system, 
@@ -48,18 +39,15 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    // ── Build chat history ───────────────────────────────────────────────────
     const chatHistory = history.slice(-10).map((msg: any) => ({
       role: msg.role === "assistant" ? "model" : msg.role,
       parts: [{ text: msg.content }],
     }));
 
-    // FIX #1 (Cont): Removed systemInstruction from here
     const chat = model.startChat({
       history: chatHistory,
     });
 
-    // ── Non-streaming path ───────────────────────────────────────────────────
     if (!stream) {
       const result = await chat.sendMessage(message);
       const reply = result.response.text() ?? "No response generated.";
@@ -79,7 +67,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Streaming path (Server-Sent Events) ─────────────────────────────────
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
@@ -96,7 +83,6 @@ Deno.serve(async (req: Request) => {
         }
         await writer.write(encoder.encode("data: [DONE]\n\n"));
       } catch (e: any) {
-        // FIX #2: Format the error so the frontend actually displays it inside the bubble
         const errorMsg = JSON.stringify({ choices: [{ delta: { content: `\n[Backend Error: ${e.message}]` } }] });
         await writer.write(encoder.encode(`data: ${errorMsg}\n\n`));
       } finally {
